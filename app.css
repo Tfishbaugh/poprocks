@@ -309,7 +309,7 @@ button:disabled { cursor: default; opacity: 0.4; }
   }
 }
 
-/* ---- Longer beats: ❮, the map, ❯ and ➕ above the grid (task 80, lane A) ---- */
+/* ---- Longer beats: ❮, the map, ❯, ➖ and ➕ above the grid (task 80, lane A) ---- */
 
 .strip-nav {
   display: flex;
@@ -518,7 +518,7 @@ button:disabled { cursor: default; opacity: 0.4; }
   }
 
   .strip-nav { grid-area: nav; padding: 6px 8px 0 0; gap: 4px; }
-  .strip-map, .strip-nav .longer { display: none; }
+  .strip-map, .strip-nav .size-btn { display: none; }
   .nav-btn { width: 44px; min-width: 44px; min-height: 44px; padding: 2px; }
   .tools .rail-only { display: inline-flex; }
 
@@ -960,4 +960,55 @@ button:disabled { cursor: default; opacity: 0.4; }
   .kit-card { flex-direction: column; justify-content: center; min-height: 0; padding: 8px; gap: 2px; }
   .kit-card .ico { font-size: 36px; }
   .kit-sounds { max-width: none; margin: 0; text-align: center; }
+}
+
+/* ---- Press and hold a note: the pop and the note panel (task 84) ---- */
+
+.pad.held { transform: scale(1.15); box-shadow: 0 0 0 4px var(--text); }
+
+.note-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.note-panel::backdrop { background: rgb(0 0 0 / 0.2); }
+
+.note-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 2px solid var(--muted);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.3);
+}
+
+.note-title { margin: 0; font-size: 14px; font-weight: 800; white-space: nowrap; }
+.note-pitch { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.note-pitch[hidden] { display: none; }
+.note-end { font-size: 18px; line-height: 1; color: var(--muted); }
+
+/* ↕ up is higher, so the slider runs bottom to top. */
+.note-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 48px;
+  height: 200px;
+  margin: 0;
+  accent-color: var(--brand);
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .note-slider { height: 150px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pad.held { transform: none; }
 }
