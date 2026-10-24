@@ -30,6 +30,8 @@ async function openEffects(page) {
   await expect.poll(() => page.locator('#fx-view').evaluate((c) => c.width), { message: 'the preview has the video size' }).toBeGreaterThan(300);
 }
 
+// Only a toast that is showing: a closed one keeps its old words.
+const toast = (page) => page.locator('#toast:not([hidden])');
 const pick = (page, row, name) => page.locator(`#${row} button`, { hasText: name }).click();
 const src = (page) => page.locator('#playback').evaluate((v) => v.src);
 const spread = ([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b);
@@ -135,7 +137,7 @@ test('stickers: tap to add, drag to move, arrow keys nudge, ✕ or Delete remove
   await expect(page.locator('#fx-sticker-row button').first()).toBeEnabled();
 });
 
-test('✅ Use it makes a new video with the effect and the beat, and Undo brings back the original', async ({ page }, testInfo) => {
+test('✅ Use it makes a new video with the effect and the beat in it', async ({ page }, testInfo) => {
   await filmed(page, 3, { beat: true });
   const original = await src(page);
   const before = await download(page, testInfo);
@@ -148,14 +150,10 @@ test('✅ Use it makes a new video with the effect and the beat, and Undo brings
   await expect(page.locator('#fx-time')).toContainText('left');
   await expect(page.locator('#fx-tray')).toBeHidden();
   await expect(page.locator('#watch-save')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#toast')).toContainText('Gray + stickers added ✓');
+  await expect(toast(page)).toContainText('Gray + stickers added ✓');
   expect(await src(page)).not.toBe(original);
 
   const made = await download(page, testInfo);
-  await page.click('#toast-action');
-  await expect.poll(() => src(page)).toBe(original);
-  await expect(page.locator('#watch-save')).toBeVisible();
-
   expect(probe(made.path).streams.map((s) => s.codec_type).sort()).toEqual(['audio', 'video']);
   expect(Math.abs(duration(made.path) - duration(before.path)), 'as long as the original').toBeLessThan(0.8);
   expect(maxVolume(made.path), 'the beat is in it').toBeGreaterThan(-30);
@@ -167,13 +165,22 @@ test('✅ Use it makes a new video with the effect and the beat, and Undo brings
   expect(Math.max(...[[2, 2], [8, 4], [24, 14], [16, 9]].map(([x, y]) => spread(plain(x, y)))), 'the original was in color').toBeGreaterThan(20);
 });
 
-test('None brings the original straight back, and effects always start from the original', async ({ page }) => {
-  await filmed(page);
-  const original = await src(page);
+async function makeRainbow(page) {
   await openEffects(page);
   await pick(page, 'fx-filters', 'Rainbow');
   await page.click('#fx-use');
-  await expect(page.locator('#toast')).toContainText('Rainbow added ✓', { timeout: 15_000 });
+  await expect(toast(page)).toContainText('Rainbow added ✓', { timeout: 15_000 });
+}
+
+test('Undo and None bring back the original, and effects always start from it', async ({ page }) => {
+  await filmed(page);
+  const original = await src(page);
+  await makeRainbow(page);
+  expect(await src(page)).not.toBe(original);
+  await page.click('#toast-action');
+  await expect.poll(() => src(page)).toBe(original);
+
+  await makeRainbow(page);
   const rainbow = await src(page);
 
   await openEffects(page);
@@ -181,7 +188,7 @@ test('None brings the original straight back, and effects always start from the 
   await expect(page.locator('#fx-filters button', { hasText: 'Rainbow' })).toHaveAttribute('aria-pressed', 'true');
   await pick(page, 'fx-filters', 'None');
   await page.click('#fx-use');
-  await expect(page.locator('#toast')).toContainText('Back to the original ✓');
+  await expect(toast(page)).toContainText('Back to the original ✓');
   expect(await src(page)).toBe(original);
   await page.click('#toast-action');
   await expect.poll(() => src(page)).toBe(rainbow);
@@ -195,7 +202,7 @@ test('✅ Use it still works when tapped while the preview loops back to the sta
     document.getElementById('playback').currentTime = 0.5;
     document.getElementById('fx-use').click();
   });
-  await expect(page.locator('#toast')).toContainText('Gray added ✓', { timeout: 15_000 });
+  await expect(toast(page)).toContainText('Gray added ✓', { timeout: 15_000 });
 });
 
 test('✕ Stop throws the half-made video away, and ✕ Close leaves the video as it was', async ({ page }) => {
@@ -207,10 +214,10 @@ test('✕ Stop throws the half-made video away, and ✕ Close leaves the video a
   await expect(page.locator('#fx-stop')).toBeVisible();
   await page.waitForTimeout(800);
   await page.click('#fx-stop');
-  await expect(page.locator('#toast')).toContainText('didn’t change');
+  await expect(toast(page)).toContainText('didn’t change');
   await expect(page.locator('#fx-tray')).toBeVisible();
   await page.waitForTimeout(500);
-  await expect(page.locator('#toast')).not.toContainText('added');
+  await expect(page.locator('#toast-msg')).not.toContainText('added');
   await page.click('#fx-close');
   await expect(page.locator('#watch-save')).toBeVisible();
   await expect(page.locator('#watch-fx')).toBeFocused();
@@ -249,7 +256,7 @@ test('Back while an effect is being made stops it and stays on Watch', async ({ 
   await expect(page.locator('#fx-stop')).toBeVisible();
   await page.goBack();
   await expect(page.locator('#watch-save')).toBeVisible();
-  await expect(page.locator('#toast')).toContainText('didn’t change');
+  await expect(toast(page)).toContainText('didn’t change');
   expect(await src(page)).toBe(original);
 });
 
@@ -263,7 +270,7 @@ test('leaving the app while an effect is being made stops it and keeps the video
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect(page.locator('#toast')).toContainText('Stopped');
+  await expect(toast(page)).toContainText('Stopped');
   await expect(page.locator('#fx-tray')).toBeVisible();
 });
 
@@ -278,7 +285,7 @@ test('effects never open the camera or reach other sites', async ({ context, pag
   await pick(page, 'fx-filters', 'Gray');
   await pick(page, 'fx-sticker-row', 'Crown');
   await page.click('#fx-use');
-  await expect(page.locator('#toast')).toContainText('added ✓', { timeout: 15_000 });
+  await expect(toast(page)).toContainText('added ✓', { timeout: 15_000 });
   expect(await cameraCalls(page)).toBe(1);
   expect(await liveTracks(page)).toBe(0);
   const origin = new URL(testInfo.project.use.baseURL).origin;
@@ -347,6 +354,6 @@ for (const size of SIZES) {
     await expect(page.locator('#fx-stop')).toBeVisible();
     await expect(page.locator('#fx-making')).toBeInViewport({ ratio: 1 });
     expect(await tooSmall(page), 'making').toEqual([]);
-    await expect(page.locator('#toast')).toContainText('added ✓', { timeout: 15_000 });
+    await expect(toast(page)).toContainText('added ✓', { timeout: 15_000 });
   });
 }

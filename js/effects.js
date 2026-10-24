@@ -54,6 +54,7 @@ export const STICKER_SIZE = 0.28; // of the picture's shorter side
 const INK = '#1A0B33';
 const RING = 2 * Math.PI * 54;
 const NUDGE = 0.02;
+const REMOVE_SIZE = 48;
 const KEY_MOVES = { ArrowLeft: [-NUDGE, 0], ArrowRight: [NUDGE, 0], ArrowUp: [0, -NUDGE], ArrowDown: [0, NUDGE] };
 
 export const plain = () => ({ filter: 'none', stickers: [] });
@@ -225,16 +226,21 @@ function drawSticker(ctx, sticker, w, h) {
   ctx.restore();
 }
 
+function svgPath(d, attributes) {
+  const path = document.createElementNS(SVG, 'path');
+  path.setAttribute('d', d);
+  Object.entries(attributes).forEach(([name, value]) => path.setAttribute(name, value));
+  return path;
+}
+
+// The same art for the tray: a white edge under every part, so dark ones show on the chip.
 function stickerIcon({ parts }) {
   const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('viewBox', '-6 -6 112 112');
+  svg.setAttribute('viewBox', '-8 -8 116 116');
   svg.setAttribute('aria-hidden', 'true');
-  svg.append(...parts.map(([fill, d]) => {
-    const path = document.createElementNS(SVG, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', fill);
-    return path;
-  }));
+  const edges = parts.map(([, d]) => svgPath(d, { fill: 'none', stroke: '#FFFFFF', 'stroke-width': 14, 'stroke-linejoin': 'round' }));
+  const fills = parts.map(([fill, d]) => svgPath(d, { fill, stroke: INK, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
+  svg.append(...edges, ...fills);
   return svg;
 }
 
@@ -333,6 +339,7 @@ export function createEffects({ audio, format, onMade, toast }) {
     $('fx-stage').style.top = `${box.top + fit.top}px`;
     $('fx-stage').style.width = `${fit.width}px`;
     $('fx-stage').style.height = `${fit.height}px`;
+    renderHandles();
   }
 
   function fitCanvas(video) {
@@ -340,7 +347,6 @@ export function createEffects({ audio, format, onMade, toast }) {
     if (view.width === w && view.height === h) return;
     [view, glCanvas].forEach((canvas) => Object.assign(canvas, { width: w, height: h }));
     layout();
-    renderHandles();
   }
 
   function paint(video) {
@@ -378,15 +384,17 @@ export function createEffects({ audio, format, onMade, toast }) {
     return node;
   }
 
-  // ✕ sits inside the chosen sticker's top-right corner, so it never leaves the picture.
+  // ✕ sits on the chosen sticker's top-right corner, kept inside the picture.
   function renderHandles() {
     $('fx-handles').replaceChildren(...settings.stickers.map(handle));
     const chosen = settings.stickers[selected];
     $('fx-remove').hidden = !chosen;
     if (!chosen) return;
     const box = stickerBox(chosen, view.width, view.height);
-    $('fx-remove').style.left = `${Math.min(100, box.left + box.width)}%`;
-    $('fx-remove').style.top = `${Math.max(0, box.top)}%`;
+    const { clientWidth: w, clientHeight: h } = $('fx-stage');
+    const half = REMOVE_SIZE / 2;
+    $('fx-remove').style.left = `${Math.min(w - half, Math.max(half, ((box.left + box.width) / 100) * w))}px`;
+    $('fx-remove').style.top = `${Math.min(h - half, Math.max(half, (box.top / 100) * h))}px`;
   }
 
   function choose(next, focus = -1) {
