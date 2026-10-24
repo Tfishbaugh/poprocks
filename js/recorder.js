@@ -2,12 +2,15 @@
 
 export const MAX_SECONDS = 120;
 
+// H.264 MP4 first: Photos and Gallery play it everywhere. Plain 'video/mp4' comes last,
+// because a browser without H.264 fills it with VP9, which galleries may not play.
 const FORMATS = [
   { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
-  { mimeType: 'video/mp4', ext: 'mp4' },
+  { mimeType: 'video/mp4;codecs=avc1', ext: 'mp4' },
   { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
   { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' },
   { mimeType: 'video/webm', ext: 'webm' },
+  { mimeType: 'video/mp4', ext: 'mp4' },
 ];
 
 export const WEBM_NOTE = 'Saved as WebM. Some photo apps can’t play it, but browsers and computers can.';

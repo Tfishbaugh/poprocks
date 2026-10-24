@@ -42,8 +42,9 @@ export function loadState(storage) {
 }
 
 export function saveState(storage, state) {
+  if (!storage) return false;
   try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+    storage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
   } catch {
     return false;
