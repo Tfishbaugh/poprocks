@@ -1,5 +1,5 @@
-# Beat Studio (working name)
+# PopRocks
 
-A light, kid-friendly app for making beats and music videos.
+A light, kid-friendly web app for making beats and music videos.
 
-Plan in progress.
+Everything runs in the browser: beats and videos never leave the device.
