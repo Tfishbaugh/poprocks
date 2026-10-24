@@ -119,6 +119,43 @@ test('opening the camera twice in a hurry leaves only one camera on', async ({ p
   await expect.poll(() => liveTracks(page)).toBe(0);
 });
 
+// Safari's rule: no recording while the audio session is 'playback' (the beat screen sets it,
+// so the mute switch doesn't silence the beat). This is why the iPad camera didn't turn on.
+function safariAudioSession() {
+  const session = { type: 'auto', history: [] };
+  Object.defineProperty(navigator, 'audioSession', { value: session, configurable: true });
+  const open = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = (constraints) => {
+    session.history.push(session.type);
+    if (!['auto', 'play-and-record'].includes(session.type)) {
+      return Promise.reject(new DOMException('capture needs play-and-record', 'InvalidStateError'));
+    }
+    return open(constraints);
+  };
+}
+
+test('iPad: the camera opens even though the beat screen uses the playback audio session', async ({ page }) => {
+  await page.addInitScript(safariAudioSession);
+  await startApp(page);
+  expect(await page.evaluate(() => navigator.audioSession.type)).toBe('playback');
+  await openCamera(page);
+  expect(await page.evaluate(() => navigator.audioSession.history)).toEqual(['play-and-record']);
+  await page.click('#rec-close');
+  expect(await page.evaluate(() => navigator.audioSession.type)).toBe('playback');
+});
+
+test('if the nice camera settings are refused, the plain ones are tried', async ({ page }) => {
+  await page.addInitScript(() => {
+    const open = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (c) => (c.video.width
+      ? Promise.reject(new DOMException('too big', 'OverconstrainedError'))
+      : open(c));
+  });
+  await startApp(page);
+  await openCamera(page);
+  expect(await liveTracks(page)).toBe(2);
+});
+
 test('a blocked camera gets a friendly message and a retry', async ({ page }) => {
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('no', 'NotAllowedError'));
@@ -126,6 +163,7 @@ test('a blocked camera gets a friendly message and a retry', async ({ page }) =>
   await startApp(page);
   await page.click('#make-video');
   await expect(page.locator('#rec-msg')).toContainText('grown-up');
+  await expect(page.locator('#rec-code')).toHaveText('NotAllowedError');
   await expect(page.locator('#rec-retry')).toBeVisible();
   await expect(page.locator('#rec-btn')).toBeDisabled();
 });

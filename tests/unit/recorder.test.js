@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NO_VIDEO_NOTE, WEBM_NOTE, cameraError, canRecord, pickFormat } from '../../js/recorder.js';
+import { NO_VIDEO_NOTE, WEBM_NOTE, cameraError, canRecord, openCamera, pickFormat } from '../../js/recorder.js';
 
 // What each browser's MediaRecorder.isTypeSupported says yes to.
 const BROWSERS = {
@@ -88,8 +88,53 @@ test('canRecord needs a format, the camera API and audio mixing', () => {
 });
 
 test('camera errors get kid-friendly messages', () => {
-  assert.match(cameraError({ name: 'NotAllowedError' }), /grown-up/);
+  assert.match(cameraError({ name: 'NotAllowedError' }), /grown-up.*Settings/);
+  assert.match(cameraError({ name: 'SecurityError' }), /grown-up/);
   assert.match(cameraError({ name: 'NotFoundError' }), /No camera/);
+  assert.match(cameraError({ name: 'NotReadableError' }), /Another app/);
+  assert.match(cameraError({ name: 'InvalidStateError' }), /Try again/);
   assert.match(cameraError(new Error('boom')), /Try again/);
   assert.match(cameraError(undefined), /Try again/);
+});
+
+function fakeDevices(answers) {
+  const calls = [];
+  return {
+    calls,
+    getUserMedia: async (constraints) => {
+      calls.push(constraints);
+      const answer = answers[calls.length - 1];
+      if (answer instanceof Error) throw answer;
+      return answer;
+    },
+  };
+}
+
+const named = (name) => Object.assign(new Error(name), { name });
+
+test('the camera opens with the nice settings when it can', async () => {
+  const devices = fakeDevices(['stream']);
+  assert.equal(await openCamera(devices), 'stream');
+  assert.equal(devices.calls.length, 1);
+  assert.equal(devices.calls[0].video.facingMode, 'user');
+  assert.equal(devices.calls[0].audio.echoCancellation, true);
+});
+
+test('if the nice settings fail, it tries the plainest ones', async () => {
+  for (const name of ['OverconstrainedError', 'NotReadableError', 'InvalidStateError', 'TypeError']) {
+    const devices = fakeDevices([named(name), 'plain']);
+    assert.equal(await openCamera(devices), 'plain', name);
+    assert.deepEqual(devices.calls[1], { video: { facingMode: 'user' }, audio: true });
+  }
+});
+
+test('a “no” from the person is final: no second prompt', async () => {
+  const devices = fakeDevices([named('NotAllowedError'), 'never']);
+  await assert.rejects(openCamera(devices), { name: 'NotAllowedError' });
+  assert.equal(devices.calls.length, 1);
+});
+
+test('when both tries fail, the second error is the one shown', async () => {
+  const devices = fakeDevices([named('OverconstrainedError'), named('NotFoundError')]);
+  await assert.rejects(openCamera(devices), { name: 'NotFoundError' });
 });

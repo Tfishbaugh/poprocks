@@ -33,21 +33,37 @@ export function canRecord(env = globalThis) {
   );
 }
 
-export function openCamera(mediaDevices = navigator.mediaDevices) {
-  return mediaDevices.getUserMedia({
-    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
+const NICE = {
+  video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+};
+const PLAIN = { video: { facingMode: 'user' }, audio: true };
+
+// Tries the nicest settings, then the plainest. A "no" from the person is final.
+export async function openCamera(mediaDevices = navigator.mediaDevices) {
+  try {
+    return await mediaDevices.getUserMedia(NICE);
+  } catch (error) {
+    if (error?.name === 'NotAllowedError') throw error;
+    return mediaDevices.getUserMedia(PLAIN);
+  }
 }
 
 export function stopStream(stream) {
   stream?.getTracks().forEach((track) => track.stop());
 }
 
+const CAMERA_ERRORS = {
+  NotAllowedError: 'The camera is turned off for PopRocks. A grown-up can turn it on in Settings.',
+  SecurityError: 'The camera is turned off for PopRocks. A grown-up can turn it on in Settings.',
+  NotFoundError: 'No camera found on this device.',
+  OverconstrainedError: 'No camera found on this device.',
+  NotReadableError: 'Another app is using the camera. Close it, then try again.',
+  AbortError: 'Another app is using the camera. Close it, then try again.',
+};
+
 export function cameraError(error) {
-  if (error?.name === 'NotAllowedError') return 'The camera is blocked. A grown-up can allow it in Settings.';
-  if (error?.name === 'NotFoundError') return 'No camera found on this device.';
-  return 'The camera didn’t start. Try again.';
+  return CAMERA_ERRORS[error?.name] ?? 'The camera didn’t start. Try again.';
 }
 
 // Mixes the beat and the mic into one audio track next to the camera's video.

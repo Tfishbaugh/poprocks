@@ -375,6 +375,7 @@ button:disabled { cursor: default; opacity: 0.4; }
 }
 
 .card p { margin: 0; }
+.card .code { font-size: 14px; opacity: 0.8; }
 
 .countdown {
   position: absolute;

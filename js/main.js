@@ -237,8 +237,11 @@ function showStartNote(text) {
 
 // ---- Recording ----
 
-function recordMessage(text, retry) {
+// `code` is the browser's error name, small under the message, for a grown-up to report.
+function recordMessage(text, retry, code = '') {
   $('rec-msg').textContent = text;
+  $('rec-code').textContent = code;
+  $('rec-code').hidden = !code;
   $('rec-retry').hidden = !retry;
   $('rec-card').hidden = false;
 }
@@ -253,18 +256,21 @@ function onMakeVideo() {
 
 async function openRecordCamera() {
   recordMessage('Allow the camera to film yourself.', false);
+  // iOS can't record in the 'playback' session the beat screen uses, so switch first.
+  setAudioSession('play-and-record');
   let stream;
   try {
     stream = await openCamera();
   } catch (error) {
-    return recordMessage(cameraError(error), true);
+    setAudioSession('playback');
+    return recordMessage(cameraError(error), true, error?.name);
   }
   if (screen !== 'record' || document.hidden) return stopStream(stream);
   stopStream(camera);
   camera = stream;
-  setAudioSession('play-and-record');
   engine.resume();
   $('preview').srcObject = camera;
+  $('preview').play().catch(() => {});
   $('rec-card').hidden = true;
   $('rec-btn').disabled = false;
   setMic(micOn);
