@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 const problems = [];
 const fail = (message) => problems.push(message);
+const failEach = (items, message) => items.forEach((item) => fail(message(item)));
 const read = (path) => readFileSync(path, 'utf8');
 const list = (dir, ext) => readdirSync(dir).filter((name) => name.endsWith(ext)).map((name) => join(dir, name));
 
@@ -29,14 +30,14 @@ function checkSyntax() {
 function checkOfflineList() {
   const cached = [...read('sw.js').matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
   const wanted = APP_FILES.filter((file) => file !== 'sw.js');
-  wanted.filter((file) => !cached.includes(file)).forEach((file) => fail(`sw.js doesn't cache ${file}`));
-  cached.filter((file) => !existsSync(file)).forEach((file) => fail(`sw.js caches missing file ${file}`));
+  failEach(wanted.filter((file) => !cached.includes(file)), (file) => `sw.js doesn't cache ${file}`);
+  failEach(cached.filter((file) => !existsSync(file)), (file) => `sw.js caches missing file ${file}`);
 }
 
 function checkHtmlRefs(html) {
   const refs = [...html.matchAll(/\s(?:href|src)="([^"]+)"/g)].map((m) => m[1]);
-  refs.filter((ref) => ref.startsWith('/') || ref.includes(':')).forEach((ref) => fail(`index.html: ${ref} isn't a relative path`));
-  refs.filter((ref) => !ref.includes(':') && !existsSync(ref)).forEach((ref) => fail(`index.html: ${ref} doesn't exist`));
+  failEach(refs.filter((ref) => ref.startsWith('/') || ref.includes(':')), (ref) => `index.html: ${ref} isn't a relative path`);
+  failEach(refs.filter((ref) => !ref.includes(':') && !existsSync(ref)), (ref) => `index.html: ${ref} doesn't exist`);
 }
 
 function checkHtmlSafety(html) {
@@ -51,8 +52,8 @@ function checkHtmlSafety(html) {
 function checkManifest() {
   const manifest = JSON.parse(read('manifest.webmanifest'));
   if (manifest.name !== 'PopRocks') fail('manifest: name must be PopRocks');
-  [manifest.start_url, manifest.scope, manifest.id].filter((url) => url !== './').forEach((url) => fail(`manifest: ${url} must be ./`));
-  manifest.icons.filter(({ src }) => !existsSync(src)).forEach(({ src }) => fail(`manifest: missing icon ${src}`));
+  failEach([manifest.start_url, manifest.scope, manifest.id].filter((url) => url !== './'), (url) => `manifest: ${url} must be ./`);
+  failEach(manifest.icons.filter(({ src }) => !existsSync(src)), ({ src }) => `manifest: missing icon ${src}`);
 }
 
 // No outside URLs in anything the app ships (the SVG namespace is a name, not a request).

@@ -93,6 +93,30 @@ test('the Clear toast has its own Undo, for phones where ↩ is under More', asy
   await expect(page.locator('#toast')).toBeHidden();
 });
 
+test('Clear’s Undo brings back the cleared beat, even after another tap', async ({ page }) => {
+  await startApp(page);
+  const before = await litCount(page);
+  await page.click('#clear');
+  await pad(page, 7, 7).click();
+  await page.click('#toast-action');
+  expect(await litCount(page)).toBe(before);
+  await expect(pad(page, 7, 7)).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('switching beats closes Clear’s Undo, so it can’t touch another kid’s beat', async ({ page }) => {
+  await startApp(page);
+  await page.click('.slot[data-slot="1"]');
+  await pad(page, 2, 2).click();
+  await page.click('.slot[data-slot="0"]');
+  await page.click('#clear');
+  await expect(page.locator('#toast')).toBeVisible();
+  await page.click('.slot[data-slot="1"]');
+  await expect(page.locator('#toast')).toBeHidden();
+  await expect(pad(page, 2, 2)).toHaveAttribute('aria-pressed', 'true');
+  await page.click('.slot[data-slot="0"]');
+  expect(await litCount(page)).toBe(0);
+});
+
 test('each kid has a beat slot, and beats are still there after a reload', async ({ page }) => {
   await startApp(page);
   await page.click('.slot[data-slot="2"]');

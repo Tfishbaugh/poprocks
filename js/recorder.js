@@ -62,10 +62,8 @@ export function createMix(engine, camera) {
   source?.connect(mic);
   return {
     stream: new MediaStream([...camera.getVideoTracks(), ...dest.stream.getAudioTracks()]),
-    hasMic: Boolean(source),
     setMic(on) {
       mic.gain.value = on ? 1 : 0;
-      micTracks.forEach((track) => { track.enabled = on; });
     },
     close() {
       engine.output.disconnect(dest);

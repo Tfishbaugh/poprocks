@@ -29,7 +29,8 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  const old = (keys) => keys.filter((key) => key !== CACHE).map((key) => caches.delete(key));
+  // Other apps on this github.io origin share the cache list: only touch our own old caches.
+  const old = (keys) => keys.filter((key) => key.startsWith('poprocks-') && key !== CACHE).map((key) => caches.delete(key));
   event.waitUntil(caches.keys().then((keys) => Promise.all(old(keys))).then(() => self.clients.claim()));
 });
 

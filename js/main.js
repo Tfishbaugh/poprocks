@@ -53,6 +53,7 @@ const history = () => histories[state.slot];
 // ---- Screens and messages ----
 
 function show(name) {
+  if (name !== 'watch') $('playback').pause();
   SCREENS.forEach((id) => { $(id).hidden = id !== name; });
   screen = name;
   $(FOCUS[name]).focus({ preventScroll: true });
@@ -63,13 +64,13 @@ function setButton(id, icon, label) {
   $(id).querySelector('.lbl').textContent = label;
 }
 
-function toast(message, { action = '', ms = 3000, onAction = null, onEnd = null } = {}) {
+function toast(message, { action = '', ms = 3000, onAction = null, onEnd = null, slot = -1 } = {}) {
   closeToast();
   $('toast-msg').textContent = message;
   $('toast-action').textContent = action;
   $('toast-action').hidden = !action;
   $('toast').hidden = false;
-  toastState = { onAction, onEnd, timer: setTimeout(closeToast, ms) };
+  toastState = { onAction, onEnd, slot, timer: setTimeout(closeToast, ms) };
 }
 
 function closeToast() {
@@ -133,15 +134,18 @@ function undo() {
   setBeat(history().undo(beat()));
 }
 
+// Clear's Undo brings back exactly the cleared beat, even after another tap.
 function onClear() {
-  if (isEmpty(beat())) return;
-  commit(clear(beat()));
-  toast('Beat cleared.', { action: 'Undo', ms: 6000, onAction: undo });
+  const before = beat();
+  if (isEmpty(before)) return;
+  commit(clear(before));
+  toast('Beat cleared.', { action: 'Undo', ms: 6000, onAction: () => commit(before), slot: state.slot });
 }
 
 function onSlot(event) {
   const button = event.target.closest('.slot');
   if (!button) return;
+  if (toastState && toastState.slot >= 0) closeToast();
   state.slot = Number(button.dataset.slot);
   saveState(storage, state);
   render();
@@ -307,12 +311,12 @@ function onRecordButton() {
 
 function beginRecording() {
   cancelCountdown();
-  mix = createMix(engine, camera);
-  mix.setMic(micOn);
   try {
+    mix = createMix(engine, camera);
+    mix.setMic(micOn);
     recorder = startRecorder(mix.stream, format, onRecorded);
   } catch {
-    mix.close();
+    mix?.close();
     mix = null;
     return recordMessage('Filming didn’t start. Try again.', false);
   }
@@ -349,6 +353,7 @@ function stopRecording() {
 }
 
 function onRecorded(blob) {
+  stopRecording();
   mix?.close();
   mix = null;
   closeCamera();
@@ -371,7 +376,7 @@ function onHide() {
   cancelCountdown();
   if (recorder) return stopRecording();
   stopPlaying();
-  if (screen !== 'record' || !camera) return;
+  if (screen !== 'record' || !canRecord()) return;
   closeCamera();
   recordMessage('The camera turned off. Tap to turn it back on.', true);
 }
@@ -401,7 +406,6 @@ function showWatch() {
 }
 
 function backToBeats(message) {
-  $('playback').pause();
   show('beats');
   if (message) toast(message);
 }

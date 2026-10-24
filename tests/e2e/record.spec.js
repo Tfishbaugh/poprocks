@@ -132,3 +132,81 @@ test('if filming fails to start, the kid sees why and can try again', async ({ p
   await expect(page.locator('#rec-btn')).toBeEnabled();
   await expect(page.locator('#rec-btn')).toContainText('Record');
 });
+
+test('🔁 Again stops the old clip, so it can’t play over the new one', async ({ page }) => {
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 2);
+  await page.locator('#playback').evaluate((v) => v.play());
+  await expect.poll(() => page.locator('#playback').evaluate((v) => v.paused)).toBe(false);
+  await page.click('#watch-again');
+  expect(await page.locator('#playback').evaluate((v) => v.paused)).toBe(true);
+});
+
+test('Cancel during the 3-2-1 stops it for good', async ({ page }) => {
+  await startApp(page);
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#countdown')).toHaveText('3');
+  await expect(page.locator('#rec-btn')).toContainText('Cancel');
+  await page.click('#rec-btn');
+  await expect(page.locator('#countdown')).toBeEmpty();
+  await page.waitForTimeout(3500);
+  await expect(page.locator('#rec-btn')).toContainText('Record');
+  await expect(page.locator('#rec-time')).toBeHidden();
+  await expect(page.locator('#record')).toBeVisible();
+});
+
+test('an empty recording goes back to the beat with an “Oops”', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Real = window.MediaRecorder;
+    window.MediaRecorder = class extends Real {
+      addEventListener(type, handler, options) {
+        const empty = () => handler({ data: new Blob([]) });
+        super.addEventListener(type, type === 'dataavailable' ? empty : handler, options);
+      }
+    };
+  });
+  await startApp(page);
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#rec-btn')).toContainText('Stop', { timeout: 6000 });
+  await page.waitForTimeout(1000);
+  await page.click('#rec-btn');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(page.locator('#toast')).toContainText('Oops');
+  await expect(page.locator('#last-video')).toBeHidden();
+});
+
+test('a recorder that stops by itself resets everything and keeps the clip', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Real = window.MediaRecorder;
+    window.MediaRecorder = class extends Real {
+      start(slice) {
+        super.start(slice);
+        setTimeout(() => this.stop(), 1500);
+      }
+    };
+  });
+  await startApp(page);
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#watch')).toBeVisible({ timeout: 8000 });
+  await page.click('#watch-back');
+  await expect(page.locator('#play')).toContainText('Play');
+  await page.waitForTimeout(300);
+  await expect(page.locator('.pad.now')).toHaveCount(0);
+  await openCamera(page);
+  await expect(page.locator('#rec-btn')).toContainText('Record');
+});
+
+test('if mixing the sound fails, the kid sees why and nothing is left half-open', async ({ page }) => {
+  await page.addInitScript(() => {
+    AudioContext.prototype.createMediaStreamSource = () => { throw new DOMException('no', 'NotSupportedError'); };
+  });
+  await startApp(page);
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#rec-msg')).toContainText('Try again', { timeout: 6000 });
+  await expect(page.locator('#rec-btn')).toContainText('Record');
+});

@@ -28,3 +28,21 @@ test('works offline after the first visit', async ({ browser }) => {
   expect(iconLoaded).toBe(true);
   await context.close();
 });
+
+test('the service worker clears only its own old caches, never other apps on the origin', async ({ browser }) => {
+  const server = await serve(0);
+  const base = `http://127.0.0.1:${server.address().port}/poprocks/`;
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(`${base}icons/icon.svg`);
+  await page.evaluate(async () => {
+    await (await caches.open('other-app-v1')).put('/other/', new Response('theirs'));
+    await (await caches.open('poprocks-v0')).put('/poprocks/old', new Response('old'));
+  });
+  await page.goto(base);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  const keys = async () => (await page.evaluate(() => caches.keys())).sort();
+  await expect.poll(keys).toEqual(['other-app-v1', 'poprocks-v1']);
+  await context.close();
+  server.close();
+});

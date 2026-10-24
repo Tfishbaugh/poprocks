@@ -2,7 +2,7 @@
 
 A light, kid-friendly web app for making beats and music videos.
 
-Everything runs in the browser: beats and videos never leave the device.
+Everything runs in the browser. PopRocks never uploads anything: beats stay on the device, and a video only goes where the device's own share sheet sends it.
 
 **Open it:** https://tfishbaugh.github.io/poprocks/ and add it to the home screen. After the first visit it works with Wi-Fi off.
 
@@ -19,6 +19,7 @@ Everything runs in the browser: beats and videos never leave the device.
 - No accounts, ads, chat or outside links.
 - A strict Content-Security-Policy blocks requests to other sites.
 - The camera and mic turn on only after 🎥 and turn off when you leave the record screen.
+- 💾 Save opens the device's share sheet, which lists Save Video next to Messages, AirDrop and other apps. The device's parental controls decide what those can do.
 - Every sound is synthesized in the browser, and the icons are drawn for this app.
 
 ## Development

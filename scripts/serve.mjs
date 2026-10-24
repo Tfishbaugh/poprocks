@@ -27,9 +27,9 @@ function filePath(url) {
 }
 
 async function handle(req, res) {
-  const full = filePath(req.url);
-  if (!full) return void res.writeHead(404).end('Not found');
   try {
+    const full = filePath(req.url);
+    if (!full) return void res.writeHead(404).end('Not found');
     const body = await readFile(full);
     res.writeHead(200, { 'Content-Type': TYPES[extname(full)], 'Cache-Control': 'no-cache' }).end(body);
   } catch {

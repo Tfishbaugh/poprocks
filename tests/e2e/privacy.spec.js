@@ -66,6 +66,31 @@ test('leaving the app on the record screen turns the camera off', async ({ page 
   await expect(page.locator('#rec-retry')).toBeVisible();
 });
 
+test('leaving the app during the 3-2-1 cancels it and turns the camera off', async ({ page }) => {
+  await startApp(page);
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#countdown')).toHaveText('3');
+  await hidePage(page);
+  await expect.poll(() => liveTracks(page)).toBe(0);
+  await page.waitForTimeout(3500);
+  await expect(page.locator('#watch')).toBeHidden();
+  await expect(page.locator('#rec-retry')).toBeVisible();
+});
+
+test('leaving while the camera is still opening offers a retry on return', async ({ page }) => {
+  await page.addInitScript(() => {
+    const open = navigator.mediaDevices.getUserMedia;
+    navigator.mediaDevices.getUserMedia = (c) => new Promise((done) => setTimeout(() => done(open(c)), 800));
+  });
+  await startApp(page);
+  await page.click('#make-video');
+  await hidePage(page);
+  await page.waitForTimeout(1500);
+  expect(await liveTracks(page)).toBe(0);
+  await expect(page.locator('#rec-retry')).toBeVisible();
+});
+
 test('a camera that is still opening when you leave is closed straight away', async ({ page }) => {
   await page.addInitScript(() => {
     const open = navigator.mediaDevices.getUserMedia;

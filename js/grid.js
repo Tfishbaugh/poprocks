@@ -48,13 +48,17 @@ function trackPads(sound, track) {
   return Array.from({ length: STEPS }, (_, step) => pad(sound, track, step));
 }
 
+function gridChildren(pads) {
+  return SOUNDS.flatMap((sound, track) => [soundButton(sound, track), ...pads[track]]);
+}
+
 function clamp(value, max) {
   return Math.min(max, Math.max(0, value));
 }
 
 export function createGrid(root, { onToggle, onSound }) {
   const pads = SOUNDS.map((sound, track) => trackPads(sound, track));
-  root.replaceChildren(...SOUNDS.flatMap((sound, track) => [soundButton(sound, track), ...pads[track]]));
+  root.replaceChildren(...gridChildren(pads));
   let nowStep = -1;
 
   const turned = () => getComputedStyle(root).getPropertyValue('--turned').trim() === '1';
