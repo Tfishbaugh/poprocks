@@ -166,6 +166,17 @@ test('on a turned phone grid, arrow keys follow what you see', async ({ page }) 
   await expect(pad(page, 1, 1)).toBeFocused();
 });
 
+test('after a mouse click on a pad, Space plays instead of undoing the click', async ({ page }) => {
+  await startApp(page);
+  await page.click('#clear');
+  await pad(page, 3, 3).click();
+  await page.keyboard.press('Space');
+  await expect(page.locator('#play')).toContainText('Stop');
+  await expect(pad(page, 3, 3)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#play')).toContainText('Play');
+});
+
 test('space plays and stops when nothing is focused', async ({ page }) => {
   await startApp(page);
   await page.evaluate(() => document.activeElement.blur());

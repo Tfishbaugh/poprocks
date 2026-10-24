@@ -2,7 +2,7 @@
 // The fake mic beeps, so turning it off proves which sound comes from where.
 
 import { test, expect } from '@playwright/test';
-import { download, duration, maxVolume, openCamera, probe, record, startApp } from './helpers.js';
+import { download, duration, liveTracks, maxVolume, openCamera, probe, record, startApp, watchCamera } from './helpers.js';
 
 const SILENT = -60;
 
@@ -209,4 +209,69 @@ test('if mixing the sound fails, the kid sees why and nothing is left half-open'
   await page.click('#rec-btn');
   await expect(page.locator('#rec-msg')).toContainText('Try again', { timeout: 6000 });
   await expect(page.locator('#rec-btn')).toContainText('Record');
+});
+
+test('Back (Android’s gesture) on Watch goes to Beats and keeps the video', async ({ page }) => {
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  await page.goBack();
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(page.locator('#last-video')).toBeVisible();
+  expect(await page.evaluate(() => history.state)).toBeNull();
+});
+
+test('Escape on Watch goes to Beats and keeps the video', async ({ page }) => {
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(page.locator('#last-video')).toBeVisible();
+});
+
+test('Back or Escape on Record closes the camera; Back while filming keeps the clip', async ({ page }) => {
+  await page.addInitScript(watchCamera);
+  await startApp(page);
+  await openCamera(page);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect.poll(() => liveTracks(page)).toBe(0);
+
+  await openCamera(page);
+  await page.goBack();
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect.poll(() => liveTracks(page)).toBe(0);
+
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#rec-btn')).toContainText('Stop', { timeout: 6000 });
+  await page.waitForTimeout(1000);
+  await page.goBack();
+  await expect(page.locator('#watch')).toBeVisible();
+  await expect.poll(() => liveTracks(page)).toBe(0);
+});
+
+test('the ← and ✕ buttons leave no extra history behind', async ({ page }) => {
+  await startApp(page);
+  const start = await page.evaluate(() => history.length);
+  await openCamera(page);
+  await record(page, 1);
+  await page.click('#watch-again');
+  await expect(page.locator('#rec-btn')).toBeEnabled();
+  await page.click('#rec-close');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => history.state)).toBeNull();
+  expect(await page.evaluate(() => history.length)).toBeLessThanOrEqual(start + 1);
+});
+
+test('the new video starts playing on Watch, and Record has focus once the camera is on', async ({ page }) => {
+  await startApp(page);
+  await openCamera(page);
+  await expect(page.locator('#rec-btn')).toBeFocused();
+  await expect(page.locator('#mic')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#mic');
+  await expect(page.locator('#mic')).toHaveAttribute('aria-pressed', 'false');
+  await record(page, 1);
+  await expect.poll(() => page.locator('#playback').evaluate((v) => !v.paused || v.ended)).toBe(true);
 });

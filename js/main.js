@@ -12,6 +12,7 @@ import { fileName, saveVideo } from './save.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
+const BACK = { record: () => onRecordClose(), watch: () => backToBeats() };
 const FOCUS = { start: 'start-btn', beats: 'play', record: 'rec-close', watch: 'watch-save' };
 const RING = 2 * Math.PI * 54;
 
@@ -48,7 +49,7 @@ let deleted = null;
 let toastState = null;
 
 const beat = () => state.slots[state.slot];
-const history = () => histories[state.slot];
+const undoStack = () => histories[state.slot];
 
 // ---- Screens and messages ----
 
@@ -56,7 +57,21 @@ function show(name) {
   if (name !== 'watch') $('playback').pause();
   SCREENS.forEach((id) => { $(id).hidden = id !== name; });
   screen = name;
+  syncHistory(name);
   $(FOCUS[name]).focus({ preventScroll: true });
+}
+
+// Record and Watch get one history entry, so Back (Android's gesture, a browser's button)
+// returns to Beats instead of closing the app and losing the video.
+function syncHistory(name) {
+  const ours = history.state?.poprocks;
+  if (BACK[name] && ours) return history.replaceState({ poprocks: name }, '');
+  if (BACK[name]) return history.pushState({ poprocks: name }, '');
+  if (ours) history.back();
+}
+
+function onBack() {
+  BACK[screen]?.();
 }
 
 function setButton(id, icon, label) {
@@ -98,7 +113,7 @@ function render() {
   $('slower').disabled = bpm <= BPM_MIN;
   $('faster').disabled = bpm >= BPM_MAX;
   $('clear').disabled = isEmpty(beat());
-  $('undo').disabled = !history().canUndo;
+  $('undo').disabled = !undoStack().canUndo;
   document.querySelectorAll('.slot').forEach((button) => {
     button.setAttribute('aria-pressed', String(Number(button.dataset.slot) === state.slot));
   });
@@ -112,7 +127,7 @@ function setBeat(next) {
 }
 
 function commit(next) {
-  history().push(beat());
+  undoStack().push(beat());
   setBeat(next);
 }
 
@@ -131,7 +146,7 @@ function changeTempo(delta) {
 }
 
 function undo() {
-  setBeat(history().undo(beat()));
+  setBeat(undoStack().undo(beat()));
 }
 
 // Clear's Undo brings back exactly the cleared beat, even after another tap.
@@ -177,15 +192,24 @@ function dueStep() {
   return step;
 }
 
-// Turned grids scroll; keep the playing row in view unless a finger just moved it.
+// How far to scroll so [start, end] shows inside [min, max]; 0 if it already does.
+function nudge(start, end, min, max) {
+  return start < min || end > max ? start - min : 0;
+}
+
+// When the steps don't all fit, keep the playing step in view, unless a finger just moved the grid.
+// Steps run down a turned grid and across a wide one; the sticky sound names cover the first bit.
 function follow(step) {
-  if (screen !== 'beats' || !grid.turned() || Date.now() - lastTouch < 2000) return;
+  if (screen !== 'beats' || Date.now() - lastTouch < 2000) return;
   const wrap = $('grid-wrap');
-  const box = wrap.getBoundingClientRect();
-  const row = grid.rowOf(step).getBoundingClientRect();
-  const top = box.top + wrap.querySelector('.sound').offsetHeight;
-  if (row.top >= top && row.bottom <= box.bottom) return;
-  wrap.scrollBy({ top: row.top - top, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+  const view = wrap.getBoundingClientRect();
+  const pad = grid.stepPad(step).getBoundingClientRect();
+  const names = wrap.querySelector('.sound').getBoundingClientRect();
+  const turned = grid.turned();
+  const top = turned ? nudge(pad.top, pad.bottom, names.bottom, view.top + wrap.clientHeight) : 0;
+  const left = turned ? 0 : nudge(pad.left, pad.right, names.right, view.left + wrap.clientWidth);
+  if (!top && !left) return;
+  wrap.scrollBy({ top, left, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
 }
 
 function draw() {
@@ -273,6 +297,7 @@ async function openRecordCamera() {
   $('preview').play().catch(() => {});
   $('rec-card').hidden = true;
   $('rec-btn').disabled = false;
+  $('rec-btn').focus({ preventScroll: true });
   setMic(micOn);
 }
 
@@ -289,6 +314,7 @@ function setMic(on) {
   mix?.setMic(on);
   camera?.getAudioTracks().forEach((track) => { track.enabled = on; });
   setButton('mic', on ? '🎤' : '🔇', on ? 'Mic on' : 'Mic off');
+  $('mic').setAttribute('aria-pressed', String(on));
 }
 
 function cancelCountdown() {
@@ -406,6 +432,7 @@ function setHasVideo(on) {
 
 function showWatch() {
   $('playback').src = lastVideo.url;
+  $('playback').play().catch(() => {});
   $('watch-note').textContent = lastVideo.format.note;
   $('watch-note').hidden = !lastVideo.format.note;
   show('watch');
@@ -449,6 +476,7 @@ async function onSave() {
 // ---- Keys, lifecycle, wiring ----
 
 function onKeydown(event) {
+  if (event.key === 'Escape') return onBack();
   if (event.key !== ' ' || event.target !== document.body || screen !== 'beats') return;
   event.preventDefault();
   togglePlay();
@@ -491,6 +519,7 @@ document.addEventListener('keydown', onKeydown);
 document.addEventListener('pointerdown', wakeAudio, { passive: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden) onHide(); });
 window.addEventListener('pagehide', onHide);
+window.addEventListener('popstate', onBack);
 $('ring-left').style.strokeDasharray = String(RING);
 render();
 

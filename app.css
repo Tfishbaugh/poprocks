@@ -212,12 +212,25 @@ button:disabled { cursor: default; opacity: 0.4; }
 .slot[aria-pressed="true"] { background: var(--color); color: var(--on-c); }
 
 .grid-wrap {
+  --gutter: 12px;
   flex: 1;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  container: beats / size;
-  padding: 4px 12px;
+  padding: 4px var(--gutter);
+  scroll-padding-left: 96px;
+}
+
+/* Mouse and touchpad: a big scrollbar that is always there, for when the grid scrolls. */
+@media (pointer: fine) {
+  .grid-wrap::-webkit-scrollbar { width: 16px; height: 16px; }
+  .grid-wrap::-webkit-scrollbar-track { background: var(--pad-off); border-radius: 8px; }
+  .grid-wrap::-webkit-scrollbar-thumb { background: var(--muted); border: 3px solid var(--pad-off); border-radius: 8px; }
+  .grid-wrap::-webkit-scrollbar-corner { background: transparent; }
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .grid-wrap { scrollbar-color: var(--muted) var(--pad-off); }
 }
 
 .grid {
@@ -239,7 +252,11 @@ button:disabled { cursor: default; opacity: 0.4; }
   border-radius: 14px;
 }
 
+/* The sound names stay put while the steps scroll. */
 .sound {
+  position: sticky;
+  left: calc(-1 * var(--gutter));
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -257,12 +274,15 @@ button:disabled { cursor: default; opacity: 0.4; }
 .pad { background-color: var(--pad-off); transition: transform 60ms ease-out; }
 .pad.alt { background-color: var(--pad-alt); }
 .pad.now { background-color: var(--pad-now); }
+.pad.now:not(.on) { box-shadow: inset 0 0 0 3px var(--muted); }
 .pad.on { background-color: var(--color); box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.18); }
 .pad.on.now { transform: scale(1.08); filter: brightness(1.15); }
 .pad:active { transform: scale(0.92); }
 
-/* Narrow or portrait: sounds across the top, steps run down and scroll. */
-@container beats (max-width: 779px) or (orientation: portrait) {
+/* Upright screens: sounds across the top, steps run down and scroll. */
+@media (orientation: portrait) {
+  .grid-wrap { scroll-padding: 72px 0 0; }
+
   .grid {
     --turned: 1;
     grid-template-columns: repeat(8, minmax(44px, 1fr));
@@ -272,9 +292,9 @@ button:disabled { cursor: default; opacity: 0.4; }
   .sound, .pad { grid-row: var(--tr); grid-column: var(--tc); }
 
   .sound {
-    position: sticky;
-    top: 0;
-    z-index: 1;
+    top: -4px;
+    left: auto;
+    border-width: 2px;
     box-shadow: inset 0 -5px 0 var(--color);
     padding-bottom: 4px;
   }
@@ -283,7 +303,6 @@ button:disabled { cursor: default; opacity: 0.4; }
 /* ---- Bottom bar ---- */
 
 .bar-wrap {
-  container: bar / inline-size;
   padding: 4px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
 }
 
@@ -312,30 +331,80 @@ button:disabled { cursor: default; opacity: 0.4; }
 }
 
 .speed .num { font-size: 20px; font-weight: 900; }
-.more { display: none; }
+.more { display: none; position: relative; }
 #play { margin-inline: auto; }
 
-/* Phones: the small tools fold into a More row above the bar. */
-@container bar (max-width: 839px) {
+.more.has-video::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--video);
+}
+
+/* Phones and small tablets: the small tools fold into a More row above the bar. */
+@media (max-width: 783px) {
   .bar { flex-wrap: wrap; justify-content: space-between; }
   .more { display: inline-flex; }
   .tools { display: none; order: -1; width: 100%; justify-content: space-evenly; flex-wrap: wrap; gap: 2px; margin: 0; }
   .tools .tool { min-width: 48px; padding: 4px 2px; }
   .bar.more-open .tools { display: flex; }
-  .more { position: relative; }
-  .more.has-video::after {
-    content: '';
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--video);
-  }
   #play { margin-inline: 0; }
   #make-video { flex-direction: column; gap: 2px; min-height: 64px; padding: 4px 14px; border-radius: 20px; }
   #make-video .lbl { font-size: 15px; }
+}
+
+/* Phones on their side and short windows: the buttons move to a rail on the right,
+   so all 8 sounds fit top to bottom. Steps scroll sideways if 16 don't fit. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .beats {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "grid top" "grid bar";
+  }
+
+  .top { grid-area: top; padding: 4px max(8px, env(safe-area-inset-right)) 0 0; }
+  .logo { display: none; }
+  .slots { display: grid; grid-template-columns: repeat(2, 44px); gap: 4px; }
+  .slot { width: 44px; height: 44px; }
+  .grid-wrap { --gutter: 8px; grid-area: grid; padding-left: max(8px, env(safe-area-inset-left)); padding-right: 4px; scroll-padding-left: 64px; }
+  .grid { grid-template-columns: minmax(56px, 72px) repeat(16, minmax(44px, 1fr)); }
+  .bar-wrap { grid-area: bar; display: flex; padding: 4px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) 0; }
+  .bar { flex-direction: column; justify-content: flex-end; flex-wrap: nowrap; gap: 6px; }
+  .more { display: inline-flex; width: 92px; }
+  .tools {
+    display: none;
+    position: fixed;
+    z-index: 5;
+    right: calc(max(8px, env(safe-area-inset-right)) + 100px);
+    bottom: 8px;
+    width: auto;
+    max-width: calc(100vw - 132px);
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+    margin: 0;
+    padding: 6px;
+    border-radius: 16px;
+    background: var(--bg);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.3);
+  }
+  .bar.more-open .tools { display: flex; }
+  #play, #make-video {
+    flex-direction: column;
+    gap: 2px;
+    width: 92px;
+    min-width: 92px;
+    min-height: 60px;
+    margin: 0;
+    padding: 4px;
+    border-radius: 18px;
+  }
+  #play .lbl, #make-video .lbl { font-size: 15px; }
 }
 
 /* ---- Record ---- */
@@ -489,17 +558,9 @@ button:disabled { cursor: default; opacity: 0.4; }
   .pad.on.now, .btn:active, .pad:active, .rec-btn:active { transform: none; }
 }
 
-/* Phones on their side: every pixel of height goes to the grid. */
-@media (max-height: 500px) {
-  .top { padding-top: 4px; padding-bottom: 0; }
-  .logo { font-size: 20px; }
-  .slot { width: 44px; height: 44px; }
-  .bar-wrap { padding-bottom: 4px; }
-}
-
 @media (max-width: 400px) {
   .logo { font-size: 20px; }
   .logo img { width: 28px; height: 28px; }
   .slot { width: 44px; height: 44px; }
-  .grid-wrap { padding-inline: 4px; }
+  .grid-wrap { --gutter: 4px; }
 }

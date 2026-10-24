@@ -13,7 +13,7 @@ const FORMATS = [
   { mimeType: 'video/mp4', ext: 'mp4' },
 ];
 
-export const WEBM_NOTE = 'Saved as WebM. Some photo apps can’t play it, but browsers and computers can.';
+export const WEBM_NOTE = 'This video is a WebM file. Some photo apps can’t play it, but browsers and computers can.';
 export const NO_VIDEO_NOTE = 'Videos don’t work in this browser yet. Beats still do!';
 
 // MP4 where the browser can (Safari, recent Chrome), WebM otherwise, null if neither.

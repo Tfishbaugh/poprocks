@@ -101,6 +101,8 @@ export function createGrid(root, { onToggle, onSound }) {
 
   root.addEventListener('keydown', onKey);
   root.addEventListener('click', onClick);
+  // A mouse click doesn't move focus to the pad, so Space still plays instead of re-toggling it.
+  root.addEventListener('mousedown', (event) => event.preventDefault());
 
   return {
     render(beat) {
@@ -112,7 +114,7 @@ export function createGrid(root, { onToggle, onSound }) {
       nowStep = step;
     },
     turned,
-    rowOf(step) {
+    stepPad(step) {
       return pads[0][step];
     },
   };

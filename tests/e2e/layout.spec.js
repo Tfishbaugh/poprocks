@@ -7,15 +7,28 @@ import { openCamera, record, startApp } from './helpers.js';
 const SIZES = [
   { name: 'phone', width: 360, height: 640 },
   { name: 'phone on its side', width: 852, height: 393 },
+  { name: 'small phone on its side', width: 740, height: 360 },
   { name: 'tablet', width: 1024, height: 768 },
   { name: 'tablet upright', width: 768, height: 1024 },
+  { name: 'iPad Air upright', width: 820, height: 1180 },
   { name: 'laptop', width: 1366, height: 768 },
+  { name: 'short laptop window', width: 1093, height: 480 },
 ];
+
+// Scrolls each pad into view (as a finger or the arrow keys would) and checks nothing covers it.
+async function unreachablePads(page) {
+  return page.evaluate(() => [...document.querySelectorAll('.pad')].filter((pad) => {
+    pad.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const box = pad.getBoundingClientRect();
+    return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) !== pad;
+  }).map((pad) => pad.getAttribute('aria-label')));
+}
 
 async function sidewaysScroll(page) {
   return page.evaluate(() => {
     const over = (el) => el.scrollWidth > el.clientWidth + 1;
-    return [document.documentElement, document.body, ...document.querySelectorAll('.grid-wrap, .bar, .screen')]
+    // The grid itself may scroll its steps sideways on small phones; the page never does.
+    return [document.documentElement, document.body, ...document.querySelectorAll('.bar, .screen, .top')]
       .filter((el) => el.offsetParent !== null || el === document.body || el === document.documentElement)
       .filter(over)
       .map((el) => el.id || el.className || el.tagName);
@@ -70,9 +83,10 @@ for (const size of SIZES) {
       expect(await gap(page, '#watch-save', '#watch-delete')).toBeGreaterThanOrEqual(96);
     });
 
-    test('all 8 sounds and all 16 steps can be reached', async ({ page }) => {
+    test('every one of the 128 pads can be reached and tapped', async ({ page }) => {
       await startApp(page);
-      for (const index of [0, 7, 120, 127]) {
+      expect(await unreachablePads(page)).toEqual([]);
+      for (const index of [0, 15, 112, 127]) {
         const pad = page.locator('.pad').nth(index);
         await pad.scrollIntoViewIfNeeded();
         await pad.click();
@@ -106,4 +120,50 @@ test('the tablet grid has sounds down the side and steps across', async ({ page 
   expect(Math.abs(step2.y - step1.y)).toBeLessThan(1);
   const grid = await page.locator('#grid-wrap').evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
   expect(grid, 'all 8 rows fit without scrolling').toBe(true);
+});
+
+const scrolls = (page) => page.locator('#grid-wrap').evaluate((el) => ({
+  across: el.scrollWidth > el.clientWidth + 1,
+  down: el.scrollHeight > el.clientHeight + 1,
+}));
+
+for (const size of [{ width: 1366, height: 768 }, { width: 1024, height: 768 }, { width: 1280, height: 600 }, { width: 915, height: 412 }]) {
+  test(`at ${size.width}×${size.height} the whole beat fits, no scrolling`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    expect(await scrolls(page)).toEqual({ across: false, down: false });
+  });
+}
+
+test('on a phone on its side, all 8 sounds fit top to bottom', async ({ page }) => {
+  await page.setViewportSize({ width: 852, height: 393 });
+  await startApp(page);
+  expect((await scrolls(page)).down).toBe(false);
+  await expect(page.locator('.sound').nth(7)).toBeInViewport({ ratio: 1 });
+  await expect(page.locator('.slot').nth(3)).toBeInViewport();
+});
+
+test('when 16 steps don’t fit across, the grid follows the playhead sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 740, height: 360 });
+  await startApp(page);
+  expect((await scrolls(page)).across).toBe(true);
+  const last = page.locator('.pad[data-track="0"][data-step="15"]');
+  await expect(last).not.toBeInViewport({ ratio: 1 });
+  await page.click('#play');
+  await expect(last).toHaveClass(/\bnow\b/, { timeout: 5000 });
+  await expect(last).toBeInViewport({ ratio: 1 });
+  const covered = await last.evaluate((pad) => {
+    const box = pad.getBoundingClientRect();
+    return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) !== pad;
+  });
+  expect(covered, 'the sticky sound names never cover the playing step').toBe(false);
+  await page.click('#play');
+});
+
+test('on an upright iPad the small tools stay out, not folded under More', async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await startApp(page);
+  await expect(page.locator('#more')).toBeHidden();
+  await expect(page.locator('#undo')).toBeVisible();
+  await expect(page.locator('#surprise')).toBeVisible();
 });
