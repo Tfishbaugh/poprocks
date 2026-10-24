@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self'; font-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>PopRocks</title>
+  <meta name="description" content="Make a beat. Make a music video.">
+  <meta name="theme-color" content="#FFF7EC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15111F" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PopRocks">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <section id="start" class="screen start" aria-labelledby="start-title">
+    <img class="start-icon" src="icons/icon.svg" alt="" width="128" height="128">
+    <h1 id="start-title" class="start-title">PopRocks</h1>
+    <p class="start-tag">Make a beat. Make a music video.</p>
+    <button id="start-btn" class="btn btn-play btn-big" type="button">
+      <span class="ico" aria-hidden="true">▶</span><span class="lbl">Tap to start</span>
+    </button>
+    <p id="start-note" class="note" hidden></p>
+  </section>
+
+  <section id="beats" class="screen beats" aria-label="Beats" hidden>
+    <header class="top">
+      <h1 class="logo"><img src="icons/icon.svg" alt="" width="32" height="32"><span>PopRocks</span></h1>
+      <div id="slots" class="slots" role="group" aria-label="Choose a beat">
+        <button class="slot" type="button" data-slot="0" aria-label="Beat 1">1</button>
+        <button class="slot" type="button" data-slot="1" aria-label="Beat 2">2</button>
+        <button class="slot" type="button" data-slot="2" aria-label="Beat 3">3</button>
+        <button class="slot" type="button" data-slot="3" aria-label="Beat 4">4</button>
+      </div>
+    </header>
+
+    <div class="grid-wrap" id="grid-wrap">
+      <div id="grid" class="grid" role="group" aria-label="Beat pads"></div>
+    </div>
+
+    <footer class="bar-wrap">
+      <div id="bar" class="bar">
+        <div id="tools" class="tools" role="group" aria-label="Beat tools">
+          <button id="slower" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐢</span><span class="lbl">Slower</span></button>
+          <output id="bpm" class="tool speed" aria-live="polite"><span class="num">100</span><span class="lbl">Speed</span></output>
+          <button id="faster" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐇</span><span class="lbl">Faster</span></button>
+          <button id="surprise" class="btn tool" type="button"><span class="ico" aria-hidden="true">🎲</span><span class="lbl">Surprise</span></button>
+          <button id="clear" class="btn tool" type="button"><span class="ico" aria-hidden="true">🧽</span><span class="lbl">Clear</span></button>
+          <button id="undo" class="btn tool" type="button"><span class="ico" aria-hidden="true">↩</span><span class="lbl">Undo</span></button>
+          <button id="last-video" class="btn tool" type="button" hidden><span class="ico" aria-hidden="true">🎬</span><span class="lbl">My video</span></button>
+        </div>
+        <button id="more" class="btn tool more" type="button" aria-expanded="false" aria-controls="tools"><span class="ico" aria-hidden="true">⋯</span><span class="lbl">More</span></button>
+        <button id="play" class="btn btn-play" type="button"><span class="ico" aria-hidden="true">▶</span><span class="lbl">Play</span></button>
+        <button id="make-video" class="btn btn-video" type="button"><span class="ico" aria-hidden="true">🎥</span><span class="lbl">Make video</span></button>
+      </div>
+    </footer>
+  </section>
+
+  <section id="record" class="screen dark record" aria-label="Make a video" hidden>
+    <video id="preview" class="preview" muted playsinline autoplay></video>
+    <div class="corner top-left">
+      <button id="rec-close" class="btn chip" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+    </div>
+    <div class="corner top-right">
+      <button id="mic" class="btn chip" type="button"><span class="ico" aria-hidden="true">🎤</span><span class="lbl">Mic on</span></button>
+    </div>
+    <div id="rec-card" class="card" role="status">
+      <p id="rec-msg">Allow the camera to film yourself.</p>
+      <button id="rec-retry" class="btn btn-video" type="button" hidden><span class="ico" aria-hidden="true">🎥</span><span class="lbl">Turn on camera</span></button>
+    </div>
+    <div id="countdown" class="countdown" aria-live="assertive"></div>
+    <div class="corner bottom-right rec-ctl">
+      <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="ring-track" cx="60" cy="60" r="54"></circle>
+        <circle id="ring-left" class="ring-left" cx="60" cy="60" r="54"></circle>
+      </svg>
+      <button id="rec-btn" class="rec-btn" type="button" disabled><span class="ico" aria-hidden="true"></span><span class="lbl">Record</span></button>
+      <span id="rec-time" class="rec-time" hidden></span>
+    </div>
+  </section>
+
+  <section id="watch" class="screen dark watch" aria-label="Watch your video" hidden>
+    <div class="watch-top">
+      <button id="watch-back" class="btn chip" type="button"><span class="ico" aria-hidden="true">←</span><span class="lbl">Beats</span></button>
+      <button id="watch-delete" class="btn chip" type="button"><span class="ico" aria-hidden="true">🗑</span><span class="lbl">Delete</span></button>
+    </div>
+    <video id="playback" class="playback" controls playsinline></video>
+    <p id="watch-note" class="note" hidden></p>
+    <div class="watch-bottom">
+      <button id="watch-again" class="btn chip" type="button"><span class="ico" aria-hidden="true">🔁</span><span class="lbl">Again</span></button>
+      <button id="watch-save" class="btn btn-video btn-big" type="button"><span class="ico" aria-hidden="true">💾</span><span class="lbl">Save</span></button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-msg"></span>
+    <button id="toast-action" class="btn toast-action" type="button" hidden></button>
+  </div>
+
+  <noscript><p class="note">PopRocks needs JavaScript turned on.</p></noscript>
+</body>
+</html>

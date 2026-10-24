@@ -1,0 +1,16 @@
+{
+  "name": "poprocks",
+  "private": true,
+  "type": "module",
+  "description": "A kids' beat and music-video maker that runs in the browser.",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test tests/unit/",
+    "test:e2e": "playwright test",
+    "icons": "node scripts/icons.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

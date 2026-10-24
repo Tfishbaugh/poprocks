@@ -1,0 +1,88 @@
+// Picks a video format, opens the camera and records camera + beat + mic.
+
+export const MAX_SECONDS = 120;
+
+const FORMATS = [
+  { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
+  { mimeType: 'video/mp4', ext: 'mp4' },
+  { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+  { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' },
+  { mimeType: 'video/webm', ext: 'webm' },
+];
+
+export const WEBM_NOTE = 'Saved as WebM. Some photo apps can’t play it, but browsers and computers can.';
+export const NO_VIDEO_NOTE = 'Videos don’t work in this browser yet. Beats still do!';
+
+// MP4 where the browser can (Safari, recent Chrome), WebM otherwise, null if neither.
+export function pickFormat(Recorder = globalThis.MediaRecorder) {
+  if (typeof Recorder?.isTypeSupported !== 'function') return null;
+  const format = FORMATS.find(({ mimeType }) => Recorder.isTypeSupported(mimeType));
+  if (!format) return null;
+  return { ...format, type: format.mimeType.split(';')[0], note: format.ext === 'webm' ? WEBM_NOTE : '' };
+}
+
+export function canRecord(env = globalThis) {
+  const AudioCtx = env.AudioContext ?? env.webkitAudioContext;
+  return Boolean(
+    pickFormat(env.MediaRecorder) &&
+      env.navigator?.mediaDevices?.getUserMedia &&
+      AudioCtx?.prototype?.createMediaStreamDestination,
+  );
+}
+
+export function openCamera(mediaDevices = navigator.mediaDevices) {
+  return mediaDevices.getUserMedia({
+    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  });
+}
+
+export function stopStream(stream) {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
+export function cameraError(error) {
+  if (error?.name === 'NotAllowedError') return 'The camera is blocked. A grown-up can allow it in Settings.';
+  if (error?.name === 'NotFoundError') return 'No camera found on this device.';
+  return 'The camera didn’t start. Try again.';
+}
+
+// Mixes the beat and the mic into one audio track next to the camera's video.
+export function createMix(engine, camera) {
+  const { ctx } = engine;
+  const dest = ctx.createMediaStreamDestination();
+  const mic = ctx.createGain();
+  engine.output.connect(dest);
+  mic.connect(dest);
+  const micTracks = camera.getAudioTracks();
+  const source = micTracks.length ? ctx.createMediaStreamSource(new MediaStream(micTracks)) : null;
+  source?.connect(mic);
+  return {
+    stream: new MediaStream([...camera.getVideoTracks(), ...dest.stream.getAudioTracks()]),
+    hasMic: Boolean(source),
+    setMic(on) {
+      mic.gain.value = on ? 1 : 0;
+      micTracks.forEach((track) => { track.enabled = on; });
+    },
+    close() {
+      engine.output.disconnect(dest);
+      source?.disconnect();
+      mic.disconnect();
+    },
+  };
+}
+
+export function startRecorder(stream, format, onDone) {
+  const recorder = new MediaRecorder(stream, {
+    mimeType: format.mimeType,
+    videoBitsPerSecond: 2_500_000,
+    audioBitsPerSecond: 128_000,
+  });
+  const chunks = [];
+  recorder.addEventListener('dataavailable', (event) => {
+    if (event.data.size) chunks.push(event.data);
+  });
+  recorder.addEventListener('stop', () => onDone(new Blob(chunks, { type: format.type })));
+  recorder.start(1000);
+  return recorder;
+}
