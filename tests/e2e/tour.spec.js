@@ -71,7 +71,7 @@ test('the tour runs on first open, one control at a time, and never again', asyn
   await expect(tour(page)).toBeVisible();
   await expect(page.locator('.tour-next')).toBeFocused();
   await expect(page.locator('.tour-text')).toHaveText('Tap squares to make a beat');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'longer']);
   await expect(page.locator('#play')).toBeFocused();
   await expect(page.locator('#play')).toContainText('Play');
   expect(await page.evaluate((key) => localStorage.getItem(key), TOUR_KEY)).toBe('["beats"]');
@@ -84,10 +84,10 @@ test('the tour runs on first open, one control at a time, and never again', asyn
 
 test('the last step says Got it! and has no Skip', async ({ page }) => {
   await start(page);
-  for (let i = 0; i < 3; i += 1) await page.click('.tour-next');
+  for (let i = 0; i < 4; i += 1) await page.click('.tour-next');
   await expect(page.locator('.tour-next')).toHaveText('Got it!');
   await expect(page.locator('.tour-skip')).toBeHidden();
-  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(4);
+  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(5);
 });
 
 const ENDINGS = {
@@ -135,7 +135,7 @@ test('❓ Help replays the tour from the start, on a laptop and from More on a p
   await page.click('#help');
   await expect(tour(page)).toBeVisible();
   await expect(page.locator('#more')).toHaveAttribute('aria-expanded', 'false');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'longer']);
 });
 
 test('a control that is there gets its step; a missing, hidden or vanished one is skipped', async ({ page }) => {
@@ -144,7 +144,7 @@ test('a control that is there gets its step; a missing, hidden or vanished one i
   await page.goto('./');
   await page.evaluate(addStandIns);
   await page.click('#start-btn');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'longer']);
 
   await page.evaluate(() => { document.getElementById('sounds').hidden = true; });
   await page.click('#help');
@@ -153,6 +153,8 @@ test('a control that is there gets its step; a missing, hidden or vanished one i
   await page.evaluate(() => { document.getElementById('make-video').hidden = true; });
   await page.click('.tour-next');
   expect(await stepName(page)).toBe('slots');
+  await page.click('.tour-next');
+  expect(await stepName(page), 'the hidden Sounds button is skipped').toBe('longer');
   await page.click('.tour-next');
   await expect(tour(page)).toBeHidden();
   expect(errors).toEqual([]);
