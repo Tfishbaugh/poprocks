@@ -135,12 +135,57 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1024, height: 768 }, 
   });
 }
 
-test('on a phone on its side, all 8 sounds fit top to bottom', async ({ page }) => {
+for (const size of [{ width: 852, height: 393 }, { width: 740, height: 360 }]) {
+  test(`on a phone on its side (${size.width}×${size.height}), all 8 sounds fit top to bottom`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    expect((await scrolls(page)).down).toBe(false);
+    await expect(page.locator('.sound').nth(7)).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.slot').nth(3)).toBeInViewport();
+  });
+}
+
+test('at 852×393 all 16 steps fit across, next to the rail', async ({ page }) => {
   await page.setViewportSize({ width: 852, height: 393 });
   await startApp(page);
-  expect((await scrolls(page)).down).toBe(false);
-  await expect(page.locator('.sound').nth(7)).toBeInViewport({ ratio: 1 });
-  await expect(page.locator('.slot').nth(3)).toBeInViewport();
+  expect(await scrolls(page)).toEqual({ across: false, down: false });
+});
+
+for (const size of [{ width: 360, height: 640 }, { width: 768, height: 1024 }, { width: 820, height: 1180 }]) {
+  test(`upright at ${size.width}×${size.height} the grid never scrolls sideways`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    expect((await scrolls(page)).across).toBe(false);
+  });
+}
+
+test('iPhone on its side: the notch gap is counted once, and More never covers Make video', async ({ page }) => {
+  await page.setViewportSize({ width: 852, height: 393 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 59, right: 59, bottom: 21 } });
+  await startApp(page);
+  const names = await page.locator('.sound').first().boundingBox();
+  expect(names.x).toBeGreaterThanOrEqual(59);
+  expect(names.x).toBeLessThan(59 + 12);
+  const rail = await page.locator('#make-video').boundingBox();
+  expect(rail.x + rail.width).toBeLessThanOrEqual(852 - 59 + 1);
+  expect(await unreachablePads(page)).toEqual([]);
+  await page.click('#more');
+  const tray = await page.locator('#tools').boundingBox();
+  expect(tray.x + tray.width, 'the tray stays left of the rail').toBeLessThanOrEqual(rail.x);
+});
+
+test('Watch on a phone on its side gives the video the full height', async ({ page }) => {
+  await page.setViewportSize({ width: 852, height: 393 });
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  const video = await page.locator('#playback').boundingBox();
+  expect(video.height).toBeGreaterThan(360);
+  const save = await page.locator('#watch-save').boundingBox();
+  const remove = await page.locator('#watch-delete').boundingBox();
+  expect(save.y).toBeGreaterThan(remove.y + remove.height + 96);
+  expect(save.x + save.width).toBeGreaterThan(800);
 });
 
 test('when 16 steps don’t fit across, the grid follows the playhead sideways', async ({ page }) => {

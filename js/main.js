@@ -47,6 +47,7 @@ let micOn = true;
 let lastVideo = null;
 let deleted = null;
 let toastState = null;
+let pointerType = '';
 
 const beat = () => state.slots[state.slot];
 const undoStack = () => histories[state.slot];
@@ -166,9 +167,16 @@ function onSlot(event) {
   render();
 }
 
-function onMore() {
-  const open = $('bar').classList.toggle('more-open');
+const isMoreOpen = () => $('bar').classList.contains('more-open');
+
+function setMore(open) {
+  $('bar').classList.toggle('more-open', open);
   $('more').setAttribute('aria-expanded', String(open));
+}
+
+// The tools close on a tap anywhere else, as a kid expects of a pop-up.
+function closeMoreOutside(event) {
+  if (isMoreOpen() && !event.target.closest('#tools, #more')) setMore(false);
 }
 
 // ---- Playing ----
@@ -408,7 +416,8 @@ function onHide() {
   cancelCountdown();
   if (recorder) return stopRecording();
   stopPlaying();
-  if (screen !== 'record' || !canRecord()) return;
+  // An error card already offers a retry; keep its error name for the grown-up.
+  if (screen !== 'record' || !canRecord() || !$('rec-retry').hidden) return;
   closeCamera();
   recordMessage('The camera turned off. Tap to turn it back on.', true);
 }
@@ -476,10 +485,19 @@ async function onSave() {
 // ---- Keys, lifecycle, wiring ----
 
 function onKeydown(event) {
+  if (event.key === 'Escape' && isMoreOpen()) return setMore(false);
   if (event.key === 'Escape') return onBack();
   if (event.key !== ' ' || event.target !== document.body || screen !== 'beats') return;
   event.preventDefault();
   togglePlay();
+}
+
+// A mouse click never leaves focus on a button, so on a laptop Space keeps meaning Play.
+// Touch is left alone: its taps don't set keyboard focus anyway.
+function keepFocusOffButtons(event) {
+  if (pointerType !== 'mouse' || !event.target.closest('button')) return;
+  event.preventDefault();
+  document.activeElement?.blur();
 }
 
 // iOS suspends audio after calls or locking; the next touch wakes it.
@@ -497,7 +515,7 @@ const CLICKS = {
   surprise: () => commit(surprise(beat())),
   clear: onClear,
   undo,
-  more: onMore,
+  more: () => setMore(!isMoreOpen()),
   'last-video': () => showWatch(),
   'make-video': onMakeVideo,
   'rec-close': onRecordClose,
@@ -517,6 +535,9 @@ $('grid-wrap').addEventListener('pointerdown', () => { lastTouch = Date.now(); }
 $('grid-wrap').addEventListener('wheel', () => { lastTouch = Date.now(); }, { passive: true });
 document.addEventListener('keydown', onKeydown);
 document.addEventListener('pointerdown', wakeAudio, { passive: true });
+document.addEventListener('pointerdown', closeMoreOutside, { passive: true });
+document.addEventListener('pointerdown', (event) => { pointerType = event.pointerType; }, { passive: true });
+document.addEventListener('mousedown', keepFocusOffButtons);
 document.addEventListener('visibilitychange', () => { if (document.hidden) onHide(); });
 window.addEventListener('pagehide', onHide);
 window.addEventListener('popstate', onBack);

@@ -67,7 +67,8 @@ export function createGrid(root, { onToggle, onSound }) {
     const target = pads[clamp(track, pads.length - 1)][clamp(step, STEPS - 1)];
     root.querySelector('.pad[tabindex="0"]').tabIndex = -1;
     target.tabIndex = 0;
-    target.focus();
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function onKey(event) {
@@ -101,8 +102,6 @@ export function createGrid(root, { onToggle, onSound }) {
 
   root.addEventListener('keydown', onKey);
   root.addEventListener('click', onClick);
-  // A mouse click doesn't move focus to the pad, so Space still plays instead of re-toggling it.
-  root.addEventListener('mousedown', (event) => event.preventDefault());
 
   return {
     render(beat) {

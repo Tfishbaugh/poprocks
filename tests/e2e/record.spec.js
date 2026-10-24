@@ -270,8 +270,10 @@ test('the new video starts playing on Watch, and Record has focus once the camer
   await openCamera(page);
   await expect(page.locator('#rec-btn')).toBeFocused();
   await expect(page.locator('#mic')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Mic', exact: true })).toBeVisible();
   await page.click('#mic');
   await expect(page.locator('#mic')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#mic')).toContainText('Mic off');
   await record(page, 1);
   await expect.poll(() => page.locator('#playback').evaluate((v) => !v.paused || v.ended)).toBe(true);
 });

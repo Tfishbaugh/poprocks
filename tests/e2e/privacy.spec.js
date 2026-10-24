@@ -165,6 +165,9 @@ test('a blocked camera gets a friendly message and a retry', async ({ page }) =>
   await expect(page.locator('#rec-msg')).toContainText('grown-up');
   await expect(page.locator('#rec-code')).toHaveText('NotAllowedError');
   await expect(page.locator('#rec-retry')).toBeVisible();
+  await hidePage(page); // a grown-up leaves to open Settings
+  await expect(page.locator('#rec-msg'), 'the message survives').toContainText('grown-up');
+  await expect(page.locator('#rec-code')).toHaveText('NotAllowedError');
   await expect(page.locator('#rec-btn')).toBeDisabled();
 });
 

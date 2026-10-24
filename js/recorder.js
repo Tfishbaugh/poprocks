@@ -69,12 +69,13 @@ export function cameraError(error) {
 // Mixes the beat and the mic into one audio track next to the camera's video.
 export function createMix(engine, camera) {
   const { ctx } = engine;
+  const micTracks = camera.getAudioTracks();
+  // Made first: it can throw, and then nothing is left connected.
+  const source = micTracks.length ? ctx.createMediaStreamSource(new MediaStream(micTracks)) : null;
   const dest = ctx.createMediaStreamDestination();
   const mic = ctx.createGain();
   engine.output.connect(dest);
   mic.connect(dest);
-  const micTracks = camera.getAudioTracks();
-  const source = micTracks.length ? ctx.createMediaStreamSource(new MediaStream(micTracks)) : null;
   source?.connect(mic);
   return {
     stream: new MediaStream([...camera.getVideoTracks(), ...dest.stream.getAudioTracks()]),

@@ -177,6 +177,36 @@ test('after a mouse click on a pad, Space plays instead of undoing the click', a
   await expect(page.locator('#play')).toContainText('Play');
 });
 
+test('after clicking a tool and then a pad, Space plays and never repeats the tool', async ({ page }) => {
+  await startApp(page);
+  for (const tool of ['#surprise', '#faster', '#slower', '#undo']) {
+    await page.click(tool);
+    await pad(page, 6, 6).click();
+    const before = await page.locator('.pad.on').evaluateAll((pads) => pads.map((p) => p.ariaLabel).join());
+    const speed = await page.locator('#bpm .num').textContent();
+    await page.keyboard.press('Space');
+    await expect(page.locator('#play'), tool).toContainText('Stop');
+    const after = await page.locator('.pad.on').evaluateAll((pads) => pads.map((p) => p.ariaLabel).join());
+    expect(after, tool).toBe(before);
+    await expect(page.locator('#bpm .num')).toHaveText(speed);
+    await page.keyboard.press('Space');
+    await expect(page.locator('#play')).toContainText('Play');
+  }
+});
+
+test('with the keyboard, Space still presses the focused button', async ({ page }) => {
+  await startApp(page);
+  await page.locator('#surprise').focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  const before = await page.locator('.pad.on').count();
+  await page.keyboard.press('Space');
+  await expect(page.locator('#play')).toContainText('Play');
+  await expect(page.locator('#undo')).toBeEnabled();
+  expect(await page.locator('.pad.on').count()).toBeGreaterThan(0);
+  expect(before).toBeGreaterThan(0);
+});
+
 test('space plays and stops when nothing is focused', async ({ page }) => {
   await startApp(page);
   await page.evaluate(() => document.activeElement.blur());
@@ -185,6 +215,24 @@ test('space plays and stops when nothing is focused', async ({ page }) => {
   await page.evaluate(() => document.activeElement.blur());
   await page.keyboard.press('Space');
   await expect(page.locator('#play')).toContainText('Play');
+});
+
+test('the More tools close on a tap elsewhere and on Escape', async ({ page }) => {
+  for (const size of [{ width: 360, height: 640 }, { width: 852, height: 393 }]) {
+    await page.setViewportSize(size);
+    await startApp(page);
+    await page.click('#more');
+    await expect(page.locator('#surprise')).toBeVisible();
+    await page.click('#faster');
+    await expect(page.locator('#surprise'), 'tapping a tool keeps them open').toBeVisible();
+    await page.locator('.sound').first().click();
+    await expect(page.locator('#surprise')).toBeHidden();
+    await expect(page.locator('#more')).toHaveAttribute('aria-expanded', 'false');
+    await page.click('#more');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#surprise')).toBeHidden();
+    await expect(page.locator('#beats')).toBeVisible();
+  }
 });
 
 test('on a phone, More opens the small tools', async ({ page }) => {
