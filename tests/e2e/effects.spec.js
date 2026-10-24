@@ -205,6 +205,33 @@ test('✅ Use it still works when tapped while the preview loops back to the sta
   await expect(toast(page)).toContainText('Gray added ✓', { timeout: 15_000 });
 });
 
+test('if making the effect can’t start, the kid sees why and the video is unchanged', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Real = window.MediaRecorder;
+    let count = 0;
+    window.MediaRecorder = class extends Real {
+      constructor(...args) {
+        count += 1;
+        if (count > 1) throw new DOMException('no', 'NotSupportedError');
+        super(...args);
+      }
+    };
+  });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await filmed(page);
+  const original = await src(page);
+  await openEffects(page);
+  await pick(page, 'fx-filters', 'Gray');
+  await page.click('#fx-use');
+  await expect(toast(page)).toContainText('Couldn’t add the effect');
+  await expect(page.locator('#fx-tray')).toBeVisible();
+  await expect(page.locator('#fx-use')).toBeVisible();
+  await page.click('#fx-close');
+  expect(await src(page)).toBe(original);
+  expect(errors).toEqual([]);
+});
+
 test('✕ Stop throws the half-made video away, and ✕ Close leaves the video as it was', async ({ page }) => {
   await filmed(page, 3);
   const original = await src(page);

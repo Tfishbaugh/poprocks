@@ -53,6 +53,8 @@ export const MAX_STICKERS = 8;
 export const STICKER_SIZE = 0.28; // of the picture's shorter side
 const INK = '#1A0B33';
 const RING = 2 * Math.PI * 54;
+const STOPPED = 'Stopped. Your video didn’t change.';
+const FAILED = 'Couldn’t add the effect. Try again.';
 const NUDGE = 0.02;
 const REMOVE_SIZE = 48;
 const KEY_MOVES = { ArrowLeft: [-NUDGE, 0], ArrowRight: [NUDGE, 0], ArrowUp: [0, -NUDGE], ArrowDown: [0, NUDGE] };
@@ -528,7 +530,7 @@ export function createEffects({ audio, format, onMade, toast }) {
       if (mode === 'making') await rewind(playback);
       if (mode === 'making') await record(sound);
     } catch {
-      stopMaking('Couldn’t add the effect. Try again.');
+      stopMaking(FAILED);
     }
   }
 
@@ -566,17 +568,19 @@ export function createEffects({ audio, format, onMade, toast }) {
   function onRecorded(made, blob) {
     teardown(made);
     if (made.cancelled) return;
-    if (!blob.size) return stopMaking('Couldn’t add the effect. Try again.');
+    if (!blob.size) return stopMaking(FAILED);
     leave();
     const video = { blob, url: URL.createObjectURL(blob), format, original: base, effect: made.settings };
     onMade(video, `${effectLabel(made.settings)} added ✓`);
   }
 
+  // A recorder that never started has no 'stop' to tidy up after it, so that's done here.
   function cancelJob() {
     if (!job) return;
     job.cancelled = true;
     if (job.started) job.source.stop();
-    finish(job);
+    if (job.recorder) return finish(job);
+    teardown(job);
   }
 
   // Stopping throws the half-made video away: the one the kid had stays as it was.
@@ -590,7 +594,7 @@ export function createEffects({ audio, format, onMade, toast }) {
   }
 
   function exit() {
-    if (mode === 'making') stopMaking('Stopped. Your video didn’t change.');
+    if (mode === 'making') stopMaking(STOPPED);
     close();
   }
 
@@ -612,7 +616,7 @@ export function createEffects({ audio, format, onMade, toast }) {
   $('fx-remove').addEventListener('click', removeSelected);
   $('fx-close').addEventListener('click', () => close());
   $('fx-use').addEventListener('click', use);
-  $('fx-stop').addEventListener('click', () => stopMaking('Stopped. Your video didn’t change.'));
+  $('fx-stop').addEventListener('click', () => stopMaking(STOPPED));
   $('fx-stage').addEventListener('pointerdown', onPointerDown);
   $('fx-stage').addEventListener('pointermove', onPointerMove);
   $('fx-stage').addEventListener('pointerup', onPointerUp);
@@ -620,7 +624,7 @@ export function createEffects({ audio, format, onMade, toast }) {
   $('fx-handles').addEventListener('keydown', onStickerKey);
   $('fx-ring-left').style.strokeDasharray = String(RING);
   window.addEventListener('resize', layout);
-  document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'making') stopMaking('Stopped. Your video didn’t change.'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'making') stopMaking(STOPPED); });
   setMode('watch');
 
   return { open, back };
