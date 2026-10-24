@@ -1,5 +1,5 @@
 import {
-  SOUNDS, audioSupported, createEngine, kitById, kitStarters, setAudioSession, useKit,
+  SOUNDS, TUNED, audioSupported, createEngine, kitById, kitStarters, setAudioSession, useKit,
 } from './sounds.js';
 import { createScheduler } from './scheduler.js';
 import {
@@ -17,6 +17,8 @@ import {
 import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
+import { createHold } from './hold.js';
+import { createNotePanel } from './note.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -85,6 +87,7 @@ function syncHistory(name) {
 
 function onBack() {
   if (copySheet.isOpen) return copySheet.close();
+  if ($('note-panel').open) return notePanel.close();
   if ($('kits').open) return $('kits').close();
   if (screen === 'watch' && effects.back()) return; // Effects closes first (task 80)
   BACK[screen]?.();
@@ -322,6 +325,45 @@ function onCopySheet(open) {
   if (open) return history.pushState({ poprocks: 'sheet' }, '');
   if (history.state?.poprocks === 'sheet') history.back();
   $('copy').focus({ preventScroll: true });
+}
+
+// ---- Press and hold a note: the note panel and its key slider (task 84) ----
+
+let noteVisit = null;
+
+// One press and hold is one ↩, from the hold until the panel closes. The key slider (and held
+// notes' stretch and ◀ ▶) change the beat through editNote, so their changes share that ↩.
+function editNote(next) {
+  if (!noteVisit) return commit(next);
+  if (!noteVisit.pushed) undoStack().push(beat());
+  noteVisit.pushed = true;
+  setBeat(next);
+}
+
+function onHold() {
+  noteVisit = { pushed: false };
+}
+
+// A lift without a slide opens the panel. Until held notes add ◀ ▶, only tuned sounds have one.
+function onLift(note, { moved }) {
+  if (moved || !note || !TUNED.has(SOUNDS[note.track].id)) return endNoteVisit();
+  if (!isOn(beat(), note.track, note.step)) editNote(toggle(beat(), note.track, note.step));
+  const label = `${SOUNDS[note.track].label}, step ${note.step + 1}`;
+  notePanel.open(note, { lift: 0, tuned: true, label });
+  history.pushState({ poprocks: 'note' }, '');
+}
+
+function endNoteVisit() {
+  noteVisit = null;
+}
+
+// The key slider: the next commit stores the lift and plays the note at it.
+function onNoteLift() {}
+
+function onNoteClosed(note) {
+  if (history.state?.poprocks === 'note') history.back();
+  endNoteVisit();
+  note?.pad.focus({ preventScroll: true });
 }
 
 // ---- Playing ----
@@ -684,6 +726,9 @@ function wakeAudio() {
 }
 
 const grid = createGrid($('grid'), { onToggle, onSound });
+// Held notes (PR 3) add onHold and onMove hooks here: the hold's start and the finger's slide.
+createHold($('grid'), { onHold, onLift, onCancel: endNoteVisit });
+const notePanel = createNotePanel($('note-panel'), { onLift: onNoteLift, onClose: onNoteClosed });
 const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
 const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });
 const strip = createStrip({

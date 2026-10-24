@@ -359,6 +359,10 @@ const VOICES = {
   'kpop-kick': kpopKick, 'kpop-clap': kpopClap, snap, 'kpop-hat': kpopHat, 808: eight08, bell, synth, hey,
 };
 
+// The sounds that play notes of the chord loop (task 84): the key slider moves them, and held
+// notes ring for their length. Every other sound is a drum or an effect.
+export const TUNED = new Set(['guitar', 'synth', 'chug', 'bass', 'rock-bass', '808', 'riff', 'bell']);
+
 // Each sound's level, so every kit is about as loud as Party (tests/e2e/kits.spec.js checks it).
 const GAINS = new Map(KITS.flatMap((kit) => kit.sounds).map(({ id, gain = 1 }) => [id, gain]));
 

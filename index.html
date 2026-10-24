@@ -166,6 +166,21 @@
     </div>
   </dialog>
 
+  <!-- The note panel (task 84): press and hold a square, then lift. ↕ is the key slider (js/note.js);
+       held notes put ◀ ▶ in #note-length. -->
+  <dialog id="note-panel" class="note-panel" aria-labelledby="note-title">
+    <div class="note-card">
+      <p id="note-title" class="note-title"></p>
+      <div id="note-pitch" class="note-pitch">
+        <span class="note-end" aria-hidden="true">▲</span>
+        <input id="note-slider" class="note-slider" type="range" min="-4" max="4" step="1" value="0" aria-label="Higher or lower">
+        <span class="note-end" aria-hidden="true">▼</span>
+      </div>
+      <div id="note-length" class="note-length" hidden></div>
+      <button id="note-done" class="btn tool" type="button"><span class="ico" aria-hidden="true">✓</span><span class="lbl">Done</span></button>
+    </div>
+  </dialog>
+
   <!-- 📋 Copy: a whole beat to another number, or one sound's row onto another sound. -->
   <div id="copy-sheet" class="sheet" hidden>
     <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="copy-title">
