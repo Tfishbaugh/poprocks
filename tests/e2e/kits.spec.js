@@ -184,22 +184,53 @@ async function offscreen(page, selector) {
   }).map((node) => node.id || node.textContent));
 }
 
+// On a phone on its side the rail has no room for Sounds, so it waits under More.
+async function openSounds(page) {
+  if (await page.locator('#sounds').isVisible()) return page.click('#sounds');
+  await page.click('#more');
+  await page.click('#sounds-tool');
+}
+
 for (const size of SIZES) {
   test(`at ${size.width}×${size.height} the Sounds button and the picker fit, with big targets`, async ({ page }) => {
     await page.setViewportSize(size);
     await startApp(page);
-    expect(await offscreen(page, '#sounds, .slot, #play, #make-video')).toEqual([]);
+    const rail = size.height <= 520 && size.width > size.height;
+    await expect(page.locator(rail ? '#more' : '#sounds')).toBeVisible();
+    expect(await offscreen(page, `${rail ? '#more' : '#sounds'}, .slot, #play, #make-video`)).toEqual([]);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
     expect(wide, 'no sideways scroll').toBe(false);
     // On a phone the word hides to make room (the logo hides on its side), but stays for screen readers.
     if (await page.locator('.logo').isVisible()) await expect(page.getByRole('heading', { name: 'PopRocks' })).toBeAttached();
-    await page.click('#sounds');
+    await openSounds(page);
     await expect(page.locator('#kits')).toBeVisible();
     expect(await offscreen(page, '.kit-card, #kits-close')).toEqual([]);
     const small = await page.locator('#kits .lbl, .kit-credit').evaluateAll((nodes) => nodes
       .filter((node) => parseFloat(getComputedStyle(node).fontSize) < 14).map((node) => node.textContent));
     expect(small).toEqual([]);
     await expect(page.locator('.kit-credit')).toContainText(/sounds by/i);
+  });
+}
+
+function overlaps(boxes) {
+  const hit = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  return boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => hit(a.box, b.box)).map((b) => `${a.id} × ${b.id}`));
+}
+
+for (const size of [{ width: 740, height: 360 }, { width: 852, height: 393 }]) {
+  test(`on a phone on its side (${size.width}×${size.height}) nothing in the rail overlaps, and Sounds opens from More`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    const ids = ['slots', 'strip-back', 'strip-next', 'more', 'play', 'make-video'];
+    const boxes = await Promise.all(ids.map(async (id) => ({ id, box: await page.locator(`#${id}`).boundingBox() })));
+    expect(overlaps(boxes)).toEqual([]);
+    await expect(page.locator('#sounds')).toBeHidden();
+    await openSounds(page);
+    await expect(page.locator('#kits')).toBeVisible();
+    await card(page, 'K-pop').click();
+    await page.click('#kits-close');
+    expect(await rowNames(page)).toEqual(KPOP);
+    await expect(page.locator('#sounds-tool')).toHaveAttribute('aria-label', 'Sounds: K-pop');
   });
 }
 

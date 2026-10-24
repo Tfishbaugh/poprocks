@@ -119,3 +119,35 @@ test('start and stop', () => {
   scheduler.stop();
   assert.equal(scheduler.playing, false);
 });
+
+test('a beat made longer mid-play carries on into the new steps', () => {
+  const { steps, scheduler, run } = rig(120);
+  scheduler.start();
+  run(1); // 8 steps queued at 120 BPM (plus lookahead)
+  const before = steps.length;
+  scheduler.setSteps(32);
+  run(4);
+  const last = steps[before - 1].step;
+  steps.slice(before).forEach(({ step }, i) => assert.equal(step, (last + 1 + i) % 32));
+});
+
+test('a beat made shorter mid-play wraps to the start', () => {
+  const { steps, scheduler, run } = rig(120);
+  scheduler.setSteps(64);
+  scheduler.start();
+  run(5); // well past step 16
+  scheduler.setSteps(16);
+  const before = steps.length;
+  run(2);
+  steps.slice(before).forEach(({ step }) => assert.ok(step < 16));
+});
+
+test('a 64-step beat loops back to step 1 exactly', () => {
+  const { steps, scheduler, run } = rig(150);
+  scheduler.setSteps(64);
+  scheduler.start();
+  run(64 * stepDuration(150) * 2 + 0.5);
+  assert.equal(steps[63].step, 63);
+  assert.equal(steps[64].step, 0);
+  assert.ok(Math.abs(steps[64].time - (START_DELAY + 64 * stepDuration(150))) < EPS);
+});

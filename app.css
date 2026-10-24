@@ -233,11 +233,14 @@ button:disabled { cursor: default; opacity: 0.4; }
   .grid-wrap { scrollbar-color: var(--muted) var(--pad-off); }
 }
 
+/* One screen holds 16 steps; a longer beat (--pages: 1 to 4) makes the strip that many screens wide. */
 .grid {
   --turned: 0;
+  --names: 72px;
   display: grid;
   min-height: 100%;
-  grid-template-columns: minmax(72px, 96px) repeat(16, minmax(44px, 1fr));
+  width: max(calc(var(--names) + (100% - var(--names)) * var(--pages, 1)), calc(var(--names) + 44px * var(--steps, 16)));
+  grid-template-columns: var(--names) repeat(var(--steps, 16), minmax(44px, 1fr));
   grid-template-rows: repeat(8, minmax(44px, 1fr));
 }
 
@@ -278,6 +281,7 @@ button:disabled { cursor: default; opacity: 0.4; }
 .pad.on { background-color: var(--color); box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.18); }
 .pad.on.now { transform: scale(1.08); filter: brightness(1.15); }
 .pad:active { transform: scale(0.92); }
+.pad.bar-start { border-left-width: 9px; }
 
 /* Upright screens: sounds across the top, steps run down and scroll. */
 @media (orientation: portrait) {
@@ -285,9 +289,14 @@ button:disabled { cursor: default; opacity: 0.4; }
 
   .grid {
     --turned: 1;
+    --head: 64px;
+    width: auto;
+    min-height: calc(var(--head) + (100% - var(--head)) * var(--pages, 1));
     grid-template-columns: repeat(8, minmax(44px, 1fr));
-    grid-template-rows: minmax(64px, auto) repeat(16, minmax(48px, 1fr));
+    grid-template-rows: var(--head) repeat(var(--steps, 16), minmax(48px, 1fr));
   }
+
+  .pad.bar-start { border-left-width: 3px; border-top-width: 9px; }
 
   .sound, .pad { grid-row: var(--tr); grid-column: var(--tc); }
 
@@ -298,6 +307,107 @@ button:disabled { cursor: default; opacity: 0.4; }
     box-shadow: inset 0 -5px 0 var(--color);
     padding-bottom: 4px;
   }
+}
+
+/* ---- Longer beats: ❮, the map, ❯ and ➕ above the grid (task 80, lane A) ---- */
+
+.strip-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 4px;
+}
+
+.nav-btn .ico { font-size: 24px; font-weight: 900; }
+
+/* The whole beat as a bar: a box shows what's on screen, a dot shows what's playing. */
+.strip-map {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border-radius: 12px;
+  background:
+    repeating-linear-gradient(to right, transparent 0 calc(100% / var(--pages, 1) - 3px), var(--bg) 0 calc(100% / var(--pages, 1))),
+    var(--pad-off);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.strip-view {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 16px;
+  border: 3px solid var(--text);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.strip-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--brand);
+  pointer-events: none;
+}
+
+/* ---- 📋 Copy sheet (task 80, lane A) ---- */
+
+.sheet {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.sheet-card {
+  width: min(440px, 100%);
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+}
+
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sheet-head h2 { margin: 0; font-size: 26px; font-weight: 900; }
+.sheet-sub { margin: 14px 0 8px; font-size: 16px; color: var(--muted); }
+
+.copy-slots { display: flex; gap: 8px; }
+
+.copy-slot, .copy-sound {
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 16px;
+  background: var(--pad-off);
+  color: var(--text);
+}
+
+.copy-slot { flex: 1; min-height: 88px; padding: 6px; }
+.copy-slot .num { font-size: 24px; font-weight: 900; }
+.copy-slot .mini { width: 64px; height: 32px; }
+
+.copy-sounds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.copy-sound { min-height: 64px; padding: 4px; box-shadow: inset 0 -5px 0 var(--color); }
+.copy-sound[aria-pressed="true"] { outline: 4px solid var(--text); outline-offset: -4px; }
+.copy-sound[aria-pressed="true"] .lbl::after { content: ' ✓'; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ---- Bottom bar ---- */
@@ -313,6 +423,9 @@ button:disabled { cursor: default; opacity: 0.4; }
 }
 
 .tools { display: flex; align-items: center; gap: 4px; margin-right: auto; }
+.tool-group { display: flex; align-items: center; gap: 4px; }
+.tool-group + .tool-group { border-left: 2px solid var(--pad-alt); padding-left: 6px; margin-left: 2px; }
+.tools .rail-only { display: none; }
 
 .tool {
   flex-direction: column;
@@ -345,12 +458,14 @@ button:disabled { cursor: default; opacity: 0.4; }
   background: var(--video);
 }
 
-/* Phones and small tablets: the small tools fold into a More row above the bar. */
-@media (max-width: 783px) {
+/* Phones and tablets: the small tools fold into a More row above the bar. */
+@media (max-width: 1023px) {
   .bar { flex-wrap: wrap; justify-content: space-between; }
   .more { display: inline-flex; }
   .tools { display: none; order: -1; width: 100%; justify-content: space-evenly; flex-wrap: wrap; gap: 2px; margin: 0; }
   .tools .tool { min-width: 48px; padding: 4px 2px; }
+  .tool-group { flex-wrap: wrap; justify-content: center; }
+  .tool-group + .tool-group { border-left: 0; padding-left: 0; margin-left: 0; }
   .bar.more-open .tools { display: flex; }
   #play { margin-inline: 0; }
   #make-video { flex-direction: column; gap: 2px; min-height: 64px; padding: 4px 14px; border-radius: 20px; }
@@ -363,16 +478,21 @@ button:disabled { cursor: default; opacity: 0.4; }
   .beats {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas: "grid top" "grid bar";
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "grid top" "grid nav" "grid bar";
   }
+
+  .strip-nav { grid-area: nav; padding: 6px 8px 0 0; gap: 4px; }
+  .strip-map, .strip-nav .longer { display: none; }
+  .nav-btn { width: 44px; min-width: 44px; min-height: 44px; padding: 2px; }
+  .tools .rail-only { display: inline-flex; }
 
   .top { grid-area: top; padding: 4px 8px 0 0; }
   .logo { display: none; }
   .slots { display: grid; grid-template-columns: repeat(2, 44px); gap: 4px; }
   .slot { width: 44px; height: 44px; }
   .grid-wrap { --gutter: 0px; grid-area: grid; padding-right: 0; scroll-padding-left: 56px; }
-  .grid { grid-template-columns: minmax(48px, 72px) repeat(16, minmax(44px, 1fr)); }
+  .grid { --names: 48px; }
   .sound { gap: 0; border-width: 2px; }
   .sound .ico { font-size: 20px; }
   .bar-wrap { grid-area: bar; display: flex; padding: 4px 8px 6px 0; }
@@ -407,7 +527,7 @@ button:disabled { cursor: default; opacity: 0.4; }
     padding: 4px;
     border-radius: 18px;
   }
-  #play { min-height: 76px; }
+  #play { min-height: 64px; }
   #play .lbl, #make-video .lbl { font-size: 15px; }
 
   /* Watch: the video gets the full height, the buttons a rail (Save bottom right). */
@@ -570,6 +690,44 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 .toast-action { background: var(--bg); color: var(--text); }
 
+/* ---- Tour (js/tour.js): a lit control, everything else dimmed, and a card beside it ---- */
+
+.tour { position: fixed; z-index: 20; inset: 0; }
+
+.tour-spot {
+  position: absolute;
+  border-radius: 18px;
+  outline: 4px solid #FFFFFF;
+  box-shadow: 0 0 0 200vmax rgb(0 0 0 / 0.6);
+  cursor: pointer;
+  transition: left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
+}
+
+.tour-card {
+  position: absolute;
+  width: min(340px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px 20px;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.35);
+}
+
+.tour-card p { margin: 0; }
+.tour-pic { font-size: 48px; line-height: 1.15; }
+.tour-text { font-size: 22px; font-weight: 900; text-wrap: balance; }
+.tour-dots { display: flex; gap: 6px; }
+.tour-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--pad-alt); }
+.tour-dot.now { background: var(--muted); }
+.tour-buttons { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: 4px; }
+.tour-skip { background: var(--bg); border: 2px solid var(--muted); font-size: 18px; }
+.tour-next { margin-left: auto; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .pad.on.now, .btn:active, .pad:active, .rec-btn:active { transform: none; }
@@ -668,10 +826,9 @@ button:disabled { cursor: default; opacity: 0.4; }
   .kit-sounds { display: none; }
 }
 
-/* Phones on their side: the Sounds button goes under the beat numbers in the rail. */
+/* Phones on their side: the rail has no room, so Sounds moves under More (#sounds-tool). */
 @media (orientation: landscape) and (max-height: 520px) {
-  .top { flex-direction: column; align-items: stretch; gap: 4px; }
-  .kit-btn { width: 92px; min-width: 92px; min-height: 44px; padding: 0 4px; border-width: 2px; }
+  .top .kit-btn { display: none; }
   .kit-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .kit-card { flex-direction: column; justify-content: center; min-height: 0; padding: 8px; gap: 2px; }
   .kit-card .ico { font-size: 36px; }
