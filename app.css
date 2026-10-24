@@ -570,6 +570,44 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 .toast-action { background: var(--bg); color: var(--text); }
 
+/* ---- Tour (js/tour.js): a lit control, everything else dimmed, and a card beside it ---- */
+
+.tour { position: fixed; z-index: 20; inset: 0; }
+
+.tour-spot {
+  position: absolute;
+  border-radius: 18px;
+  outline: 4px solid #FFFFFF;
+  box-shadow: 0 0 0 200vmax rgb(0 0 0 / 0.6);
+  cursor: pointer;
+  transition: left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
+}
+
+.tour-card {
+  position: absolute;
+  width: min(340px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px 20px;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.35);
+}
+
+.tour-card p { margin: 0; }
+.tour-pic { font-size: 48px; line-height: 1.15; }
+.tour-text { font-size: 22px; font-weight: 900; text-wrap: balance; }
+.tour-dots { display: flex; gap: 6px; }
+.tour-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--pad-alt); }
+.tour-dot.now { background: var(--muted); }
+.tour-buttons { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: 4px; }
+.tour-skip { background: var(--bg); border: 2px solid var(--muted); font-size: 18px; }
+.tour-next { margin-left: auto; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .pad.on.now, .btn:active, .pad:active, .rec-btn:active { transform: none; }

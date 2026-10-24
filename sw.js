@@ -17,6 +17,7 @@ const FILES = [
   './js/scheduler.js',
   './js/slots.js',
   './js/sounds.js',
+  './js/tour.js',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
