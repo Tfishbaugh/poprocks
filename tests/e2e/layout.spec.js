@@ -28,7 +28,7 @@ async function sidewaysScroll(page) {
   return page.evaluate(() => {
     const over = (el) => el.scrollWidth > el.clientWidth + 1;
     // The grid itself may scroll its steps sideways on small phones; the page never does.
-    return [document.documentElement, document.body, ...document.querySelectorAll('.bar, .screen, .top')]
+    return [document.documentElement, document.body, ...document.querySelectorAll('.bar, .screen, .top, .strip-nav')]
       .filter((el) => el.offsetParent !== null || el === document.body || el === document.documentElement)
       .filter(over)
       .map((el) => el.id || el.className || el.tagName);
@@ -205,10 +205,55 @@ test('when 16 steps don’t fit across, the grid follows the playhead sideways',
   await page.click('#play');
 });
 
-test('on an upright iPad the small tools stay out, not folded under More', async ({ page }) => {
-  await page.setViewportSize({ width: 820, height: 1180 });
+test('the small tools sit out from 1024 px wide, and fold under More below that', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
   await startApp(page);
   await expect(page.locator('#more')).toBeHidden();
   await expect(page.locator('#undo')).toBeVisible();
-  await expect(page.locator('#surprise')).toBeVisible();
+  await expect(page.locator('#copy')).toBeVisible();
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await expect(page.locator('#more')).toBeVisible();
+  await expect(page.locator('#undo')).toBeHidden();
+  await page.click('#more');
+  await expect(page.locator('#copy')).toBeVisible();
+});
+
+// A 64-step beat at every size: the page never scrolls sideways and every one of the 512 pads can be reached.
+for (const size of [{ width: 360, height: 640 }, { width: 852, height: 393 }, { width: 1024, height: 768 }, { width: 1366, height: 768 }]) {
+  test(`a 64-step beat at ${size.width}×${size.height}: every pad reachable, no sideways page`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await startApp(page);
+    const viaMore = !(await page.locator('#longer').isVisible());
+    if (viaMore) await page.click('#more');
+    for (let i = 0; i < 3; i += 1) await page.click(viaMore ? '#longer-tool' : '#longer');
+    if (viaMore) await page.keyboard.press('Escape');
+    await expect(page.locator('.pad')).toHaveCount(512);
+    expect(await sidewaysScroll(page)).toEqual([]);
+    expect(await smallThings(page)).toEqual([]);
+    expect(await unreachablePads(page)).toEqual([]);
+  });
+}
+
+test('in the More tray, Speed, Beat and the rest each get their own row', async ({ page }) => {
+  for (const size of [{ width: 360, height: 640 }, { width: 740, height: 360 }]) {
+    await page.setViewportSize(size);
+    await startApp(page);
+    await page.click('#more');
+    const top = async (selector) => (await page.locator(selector).boundingBox()).y;
+    expect(await top('#surprise'), `${size.width}: Beat below Speed`).toBeGreaterThan(await top('#slower') + 20);
+    expect(await top('#help'), `${size.width}: the rest below Beat`).toBeGreaterThan(await top('#surprise') + 20);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('Back closes the Sounds picker and stays in the app', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await startApp(page);
+  await page.click('#sounds');
+  await expect(page.locator('#kits')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#kits')).toBeHidden();
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => history.state)).toBeNull();
 });

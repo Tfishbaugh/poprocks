@@ -1,20 +1,29 @@
-import { SOUNDS, audioSupported, createEngine, setAudioSession } from './sounds.js';
+import {
+  SOUNDS, audioSupported, createEngine, kitById, kitStarters, setAudioSession, useKit,
+} from './sounds.js';
 import { createScheduler } from './scheduler.js';
 import {
-  BPM_MAX, BPM_MIN, BPM_STEP, clear, createHistory, isEmpty, isOn, surprise, toggle, withBpm,
+  BAR, BPM_MAX, BPM_MIN, BPM_STEP, MAX_STEPS, canDouble, clear, copyBeat, copyRow, createHistory, double, isEmpty,
+  isOn, longer, shorter, stepCount, surprise, toggle, withBpm, withKit,
 } from './pattern.js';
 import { SLOT_COUNT, loadState, saveState } from './slots.js';
 import { createGrid } from './grid.js';
+import { createStrip } from './strip.js';
+import { createCopySheet } from './copy.js';
+import { createKitPicker, labelGrid } from './kits.js';
 import {
   MAX_SECONDS, NO_VIDEO_NOTE, cameraError, canRecord, createMix, openCamera, pickFormat, startRecorder, stopStream,
 } from './recorder.js';
 import { fileName, saveVideo } from './save.js';
+import { initTour, startTour, tourOnce } from './tour.js';
+import { createEffects } from './effects.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
 const BACK = { record: () => onRecordClose(), watch: () => backToBeats() };
 const FOCUS = { start: 'start-btn', beats: 'play', record: 'rec-close', watch: 'watch-save' };
 const RING = 2 * Math.PI * 54;
+const FOLLOW_PAUSE_MS = 8000;
 
 function localStore() {
   try {
@@ -48,6 +57,9 @@ let lastVideo = null;
 let deleted = null;
 let toastState = null;
 let pointerType = '';
+let fingerDown = false;
+let shownKit = '';
+let kitSession = null;
 
 const beat = () => state.slots[state.slot];
 const undoStack = () => histories[state.slot];
@@ -72,6 +84,9 @@ function syncHistory(name) {
 }
 
 function onBack() {
+  if (copySheet.isOpen) return copySheet.close();
+  if ($('kits').open) return $('kits').close();
+  if (screen === 'watch' && effects.back()) return; // Effects closes first (task 80)
   BACK[screen]?.();
 }
 
@@ -107,18 +122,31 @@ function onToastAction() {
 
 // ---- Beats ----
 
-function render() {
-  const { bpm } = beat();
-  grid.render(beat());
-  $('bpm').querySelector('.num').textContent = bpm;
-  $('slower').disabled = bpm <= BPM_MIN;
-  $('faster').disabled = bpm >= BPM_MAX;
-  $('clear').disabled = isEmpty(beat());
+function renderTools(current) {
+  const steps = stepCount(current);
+  $('bpm').querySelector('.num').textContent = current.bpm;
+  $('slower').disabled = current.bpm <= BPM_MIN;
+  $('faster').disabled = current.bpm >= BPM_MAX;
+  $('clear').disabled = isEmpty(current);
   $('undo').disabled = !undoStack().canUndo;
+  $('double').disabled = !canDouble(current);
+  $('shorter').disabled = steps <= BAR;
+  $('longer').disabled = steps >= MAX_STEPS;
+  $('longer-tool').disabled = steps >= MAX_STEPS;
+}
+
+function render() {
+  const current = beat();
+  showKit(beatKit());
+  grid.render(current);
+  renderTools(current);
   document.querySelectorAll('.slot').forEach((button) => {
     button.setAttribute('aria-pressed', String(Number(button.dataset.slot) === state.slot));
   });
-  scheduler?.setBpm(bpm);
+  scheduler?.setBpm(current.bpm);
+  scheduler?.setSteps(stepCount(current));
+  $('strip-map').style.setProperty('--pages', stepCount(current) / BAR);
+  strip.update();
 }
 
 function setBeat(next) {
@@ -150,12 +178,16 @@ function undo() {
   setBeat(undoStack().undo(beat()));
 }
 
-// Clear's Undo brings back exactly the cleared beat, even after another tap.
+// A toast whose Undo brings back exactly `before`, even after another tap.
+function withUndo(message, before, ms = 6000) {
+  toast(message, { action: 'Undo', ms, onAction: () => commit(before), slot: state.slot });
+}
+
 function onClear() {
   const before = beat();
   if (isEmpty(before)) return;
   commit(clear(before));
-  toast('Beat cleared.', { action: 'Undo', ms: 6000, onAction: () => commit(before), slot: state.slot });
+  withUndo('Beat cleared.', before);
 }
 
 function onSlot(event) {
@@ -177,6 +209,112 @@ function setMore(open) {
 // The tools close on a tap anywhere else, as a kid expects of a pop-up.
 function closeMoreOutside(event) {
   if (isMoreOpen() && !event.target.closest('#tools, #more')) setMore(false);
+}
+
+// ---- Sound kits (task 80, lane B) ----
+
+const beatKit = () => kitById(beat().kit);
+
+// Every row plays, and the grid shows, the sounds of the beat's own kit.
+function showKit(kit) {
+  if (kit.id === shownKit) return;
+  shownKit = kit.id;
+  useKit(kit.id);
+  labelGrid($('grid'), kit.sounds);
+  setButton('sounds', kit.emoji, kit.label);
+  setButton('sounds-tool', kit.emoji, 'Sounds');
+  $('sounds').setAttribute('aria-label', `Sounds: ${kit.label}`);
+  $('sounds-tool').setAttribute('aria-label', `Sounds: ${kit.label}`);
+}
+
+// One visit to the picker is one Undo, however many kits a kid tries on the way.
+function openKits() {
+  setMore(false);
+  kitSession = { before: beatKit().id, pushed: false };
+  kitPicker.open(beatKit().id);
+  history.pushState({ poprocks: 'kits' }, '');
+}
+
+// While the beat plays, the beat itself is the preview.
+function onPickKit(id) {
+  if (id === beatKit().id) return;
+  if (!kitSession.pushed) undoStack().push(beat());
+  kitSession.pushed = true;
+  setBeat(withKit(beat(), id));
+  engine.load();
+  if (!scheduler.playing) engine.preview(id);
+}
+
+function onKitsClosed() {
+  if (history.state?.poprocks === 'kits') history.back();
+  const { before, pushed } = kitSession;
+  kitSession = null;
+  if (!pushed) return;
+  if (before === beatKit().id) return undo();
+  const { emoji, label } = beatKit();
+  const onAction = () => commit(withKit(beat(), before));
+  toast(`${emoji} ${label} sounds`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
+}
+
+// ---- Longer beats and copy (task 80, lane A) ----
+
+function touchGrid() {
+  lastTouch = Date.now();
+}
+
+function fingerUp() {
+  if (!fingerDown) return;
+  fingerDown = false;
+  touchGrid();
+}
+
+// ➕ adds 16 steps (a copy of the last 16) and scrolls to them, so the kid sees what happened.
+function onLonger() {
+  const steps = stepCount(beat());
+  if (steps >= MAX_STEPS) return;
+  commit(longer(beat()));
+  touchGrid();
+  strip.showStep(grid.stepPad(steps));
+  $('sr-status').textContent = `Your beat is now ${steps + BAR} steps long.`;
+}
+
+function onShorter() {
+  const before = beat();
+  if (stepCount(before) <= BAR) return;
+  commit(shorter(before));
+  strip.showStep(grid.stepPad(stepCount(beat()) - 1));
+  withUndo('Made shorter.', before);
+}
+
+function onDouble() {
+  const before = beat();
+  if (!canDouble(before)) return;
+  commit(double(before));
+  withUndo('Doubled.', before);
+}
+
+// The copy lands on the other number, and so does the kid: that number's old beat is its Undo.
+function onCopyBeat(target) {
+  const copy = copyBeat(beat());
+  if (toastState && toastState.slot >= 0) closeToast();
+  state.slot = target;
+  const before = beat();
+  commit(copy);
+  withUndo(`Copied! Now on beat ${target + 1}.`, before, 10_000);
+}
+
+function onCopyRow(from, to) {
+  const before = beat();
+  commit(copyRow(before, from, to));
+  withUndo(`Copied ${SOUNDS[from].label} onto ${SOUNDS[to].label}.`, before);
+}
+
+// The sheet gets a history entry so Back closes it; the beat screen behind it is inert.
+function onCopySheet(open) {
+  $('beats').inert = open;
+  if (open) return history.pushState({ poprocks: 'sheet' }, '');
+  if (history.state?.poprocks === 'sheet') history.back();
+  $('copy').focus({ preventScroll: true });
 }
 
 // ---- Playing ----
@@ -205,10 +343,11 @@ function nudge(start, end, min, max) {
   return start < min || end > max ? start - min : 0;
 }
 
-// When the steps don't all fit, keep the playing step in view, unless a finger just moved the grid.
+// When the steps don't all fit, keep the playing step in view. Never while a finger is on the
+// grid, and not for 8 s after one moved it (or until the next Play).
 // Steps run down a turned grid and across a wide one; the sticky sound names cover the first bit.
 function follow(step) {
-  if (screen !== 'beats' || Date.now() - lastTouch < 2000) return;
+  if (screen !== 'beats' || fingerDown || Date.now() - lastTouch < FOLLOW_PAUSE_MS) return;
   const wrap = $('grid-wrap');
   const view = wrap.getBoundingClientRect();
   const pad = grid.stepPad(step).getBoundingClientRect();
@@ -220,10 +359,15 @@ function follow(step) {
   wrap.scrollBy({ top, left, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
 }
 
+function showPlaying(step) {
+  grid.setNow(step);
+  strip.setPlay(step, stepCount(beat()));
+  follow(step);
+}
+
 function draw() {
   const step = dueStep();
-  if (step >= 0) grid.setNow(step);
-  if (step >= 0) follow(step);
+  if (step >= 0) showPlaying(step);
   if (recorder) drawRing();
   frame = requestAnimationFrame(draw);
 }
@@ -231,7 +375,9 @@ function draw() {
 function startPlaying() {
   if (scheduler.playing) return;
   engine.resume();
+  lastTouch = 0;
   scheduler.setBpm(beat().bpm);
+  scheduler.setSteps(stepCount(beat()));
   scheduler.start();
   frame = requestAnimationFrame(draw);
   setButton('play', '■', 'Stop');
@@ -244,6 +390,7 @@ function stopPlaying() {
   queue.length = 0;
   cancelAnimationFrame(frame);
   grid.setNow(-1);
+  strip.setPlay(-1, 1);
   setButton('play', '▶\uFE0E', 'Play');
   $('play').classList.remove('playing');
 }
@@ -256,10 +403,12 @@ function togglePlay() {
 function onStart() {
   if (!audioSupported()) return showStartNote('This browser can’t play sounds. Try Safari or Chrome.');
   engine ??= createEngine();
+  engine.load();
   scheduler ??= createScheduler({ now: () => engine.ctx.currentTime, onStep, bpm: beat().bpm });
   setAudioSession('playback');
   engine.resume();
   show('beats');
+  tourOnce('beats');
 }
 
 function showStartNote(text) {
@@ -424,8 +573,10 @@ function onHide() {
 
 // ---- Watching and saving ----
 
+// A video made with an effect keeps its original, so both go together.
 function forget(video) {
   if (video) URL.revokeObjectURL(video.url);
+  if (video?.original) URL.revokeObjectURL(video.original.url);
 }
 
 function forgetDeleted() {
@@ -445,6 +596,7 @@ function showWatch() {
   $('watch-note').textContent = lastVideo.format.note;
   $('watch-note').hidden = !lastVideo.format.note;
   show('watch');
+  tourOnce('watch');
 }
 
 function backToBeats(message) {
@@ -468,6 +620,25 @@ function undoDelete() {
   deleted = null;
   setHasVideo(true);
   showWatch();
+}
+
+// ---- Effects (task 80): a made video takes the original's place, with Undo ----
+
+// A made copy is let go once nothing can bring it back; an original stays with its copies.
+function dropCopy(video) {
+  if (video.original && video !== lastVideo) URL.revokeObjectURL(video.url);
+}
+
+function useVideo(next, message) {
+  const before = lastVideo;
+  lastVideo = next;
+  showWatch();
+  const undoVideo = () => {
+    lastVideo = before;
+    dropCopy(next);
+    showWatch();
+  };
+  toast(message, { action: 'Undo', ms: 10_000, onAction: undoVideo, onEnd: () => dropCopy(before) });
 }
 
 async function onSave() {
@@ -506,17 +677,43 @@ function wakeAudio() {
 }
 
 const grid = createGrid($('grid'), { onToggle, onSound });
+const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
+const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });
+const strip = createStrip({
+  wrap: $('grid-wrap'),
+  map: $('strip-map'),
+  view: $('strip-view'),
+  dot: $('strip-dot'),
+  back: $('strip-back'),
+  next: $('strip-next'),
+  turned: () => grid.turned(),
+  onMove: touchGrid,
+  smooth: () => !reducedMotion.matches,
+});
+const copySheet = createCopySheet({
+  root: $('copy-sheet'),
+  slotsBox: $('copy-slots'),
+  soundsBox: $('copy-sounds'),
+  rowTitle: $('copy-row-title'),
+  slots: () => state.slots,
+  current: () => state.slot,
+  sounds: () => SOUNDS,
+  onCopyBeat,
+  onCopyRow,
+  onToggle: onCopySheet,
+});
 
 const CLICKS = {
   'start-btn': onStart,
   play: () => togglePlay(),
   slower: () => changeTempo(-BPM_STEP),
   faster: () => changeTempo(BPM_STEP),
-  surprise: () => commit(surprise(beat())),
+  surprise: () => commit(surprise(beat(), Math.random, kitStarters(beat().kit))),
   clear: onClear,
   undo,
   more: () => setMore(!isMoreOpen()),
   'last-video': () => showWatch(),
+  help: () => { setMore(false); startTour('beats'); },
   'make-video': onMakeVideo,
   'rec-close': onRecordClose,
   'rec-retry': () => openRecordCamera(),
@@ -526,13 +723,28 @@ const CLICKS = {
   'watch-delete': onDelete,
   'watch-again': onMakeVideo,
   'watch-save': onSave,
+  // An effect's Undo toast would swap the video under the open Effects, so it ends here.
+  'watch-fx': () => { closeToast(); effects.open(lastVideo); },
   'toast-action': onToastAction,
+  sounds: openKits,
+  'sounds-tool': openKits,
+  longer: onLonger,
+  'longer-tool': onLonger,
+  shorter: onShorter,
+  double: onDouble,
+  copy: () => copySheet.open(),
+  'copy-close': () => copySheet.close(),
 };
 
+initTour(storage); // before the popstate and keydown listeners below, so the tour hears Back and Escape first
 Object.entries(CLICKS).forEach(([id, handler]) => $(id).addEventListener('click', handler));
 $('slots').addEventListener('click', onSlot);
-$('grid-wrap').addEventListener('pointerdown', () => { lastTouch = Date.now(); }, { passive: true });
-$('grid-wrap').addEventListener('wheel', () => { lastTouch = Date.now(); }, { passive: true });
+// A touch pan sends pointercancel while the finger stays down, so touches end on touchend.
+$('grid-wrap').addEventListener('pointerdown', () => { fingerDown = true; touchGrid(); }, { passive: true });
+$('grid-wrap').addEventListener('wheel', touchGrid, { passive: true });
+window.addEventListener('pointerup', fingerUp, { passive: true });
+window.addEventListener('touchend', fingerUp, { passive: true });
+window.addEventListener('touchcancel', fingerUp, { passive: true });
 document.addEventListener('keydown', onKeydown);
 document.addEventListener('pointerdown', wakeAudio, { passive: true });
 document.addEventListener('pointerdown', closeMoreOutside, { passive: true });

@@ -13,7 +13,9 @@ const list = (dir, ext) => readdirSync(dir).filter((name) => name.endsWith(ext))
 
 const APP_JS = list('js', '.js');
 const ICONS = [...list('icons', '.svg'), ...list('icons', '.png')];
-const APP_FILES = ['index.html', 'app.css', 'manifest.webmanifest', 'sw.js', ...APP_JS, ...ICONS];
+const SAMPLES = list('sounds', '.mp3');
+const APP_FILES = ['index.html', 'app.css', 'manifest.webmanifest', 'sw.js', ...APP_JS, ...ICONS, ...SAMPLES];
+const BINARY = /\.(png|mp3)$/;
 const ALL_JS = [...APP_JS, 'sw.js', 'playwright.config.js', ...list('scripts', '.mjs'), ...list('tests/unit', '.js'), ...list('tests/e2e', '.js')];
 
 function checkSyntax() {
@@ -58,7 +60,7 @@ function checkManifest() {
 
 // No outside URLs in anything the app ships (the SVG namespace is a name, not a request).
 function checkNoOutsideUrls() {
-  APP_FILES.filter((file) => !file.endsWith('.png')).forEach((file) => {
+  APP_FILES.filter((file) => !BINARY.test(file)).forEach((file) => {
     const text = read(file).replaceAll('http://www.w3.org/2000/svg', '');
     if (/https?:\/\//.test(text)) fail(`${file}: has an outside URL`);
   });

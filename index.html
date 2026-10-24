@@ -40,7 +40,20 @@
         <button class="slot" type="button" data-slot="2" aria-label="Beat 3">3</button>
         <button class="slot" type="button" data-slot="3" aria-label="Beat 4">4</button>
       </div>
+      <!-- Sound kits (task 80, lane B): shows this beat's kit and opens the picker. -->
+      <button id="sounds" class="btn kit-btn" type="button" aria-haspopup="dialog" aria-label="Sounds: Party"><span class="ico" aria-hidden="true">🎉</span><span class="lbl">Party</span></button>
     </header>
+
+    <!-- Longer beats: move along the strip, see where you are, make it longer. -->
+    <div id="strip-nav" class="strip-nav" role="group" aria-label="Move along the beat">
+      <button id="strip-back" class="btn tool nav-btn" type="button" aria-controls="grid-wrap"><span class="ico" aria-hidden="true">❮</span><span class="lbl">Back</span></button>
+      <div id="strip-map" class="strip-map" aria-hidden="true">
+        <div id="strip-view" class="strip-view"></div>
+        <div id="strip-dot" class="strip-dot" hidden></div>
+      </div>
+      <button id="strip-next" class="btn tool nav-btn" type="button" aria-controls="grid-wrap"><span class="ico" aria-hidden="true">❯</span><span class="lbl">Next</span></button>
+      <button id="longer" class="btn tool longer" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
+    </div>
 
     <div class="grid-wrap" id="grid-wrap">
       <div id="grid" class="grid" role="group" aria-label="Beat pads"></div>
@@ -48,14 +61,25 @@
 
     <footer class="bar-wrap">
       <div id="bar" class="bar">
-        <div id="tools" class="tools" role="group" aria-label="Beat tools">
-          <button id="slower" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐢</span><span class="lbl">Slower</span></button>
-          <output id="bpm" class="tool speed" aria-live="polite"><span class="num">100</span><span class="lbl">Speed</span></output>
-          <button id="faster" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐇</span><span class="lbl">Faster</span></button>
-          <button id="surprise" class="btn tool" type="button"><span class="ico" aria-hidden="true">🎲</span><span class="lbl">Surprise</span></button>
-          <button id="clear" class="btn tool" type="button"><span class="ico" aria-hidden="true">🧽</span><span class="lbl">Clear</span></button>
-          <button id="undo" class="btn tool" type="button"><span class="ico" aria-hidden="true">↩</span><span class="lbl">Undo</span></button>
+        <div id="tools" class="tools">
+          <div class="tool-group" role="group" aria-label="Speed">
+            <button id="slower" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐢</span><span class="lbl">Slower</span></button>
+            <output id="bpm" class="tool speed" aria-live="polite"><span class="num">100</span><span class="lbl">Speed</span></output>
+            <button id="faster" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐇</span><span class="lbl">Faster</span></button>
+          </div>
+          <div class="tool-group" role="group" aria-label="Beat">
+            <button id="surprise" class="btn tool" type="button"><span class="ico" aria-hidden="true">🎲</span><span class="lbl">Surprise</span></button>
+            <button id="clear" class="btn tool" type="button"><span class="ico" aria-hidden="true">🧽</span><span class="lbl">Clear</span></button>
+            <button id="undo" class="btn tool" type="button"><span class="ico" aria-hidden="true">↩</span><span class="lbl">Undo</span></button>
+            <button id="double" class="btn tool" type="button"><span class="ico" aria-hidden="true">×2</span><span class="lbl">Double</span></button>
+            <button id="copy" class="btn tool" type="button" aria-haspopup="dialog"><span class="ico" aria-hidden="true">📋</span><span class="lbl">Copy</span></button>
+            <button id="shorter" class="btn tool" type="button"><span class="ico" aria-hidden="true">✂️</span><span class="lbl">Shorter</span></button>
+            <button id="longer-tool" class="btn tool rail-only" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
+          </div>
+          <!-- Sound kits (task 80, lane B): on a phone on its side, Sounds lives here, not in the rail. -->
+          <button id="sounds-tool" class="btn tool rail-only" type="button" aria-haspopup="dialog" aria-label="Sounds: Party"><span class="ico" aria-hidden="true">🎉</span><span class="lbl">Sounds</span></button>
           <button id="last-video" class="btn tool" type="button" hidden><span class="ico" aria-hidden="true">🎬</span><span class="lbl">My video</span></button>
+          <button id="help" class="btn tool" type="button"><span class="ico" aria-hidden="true">❓</span><span class="lbl">Help</span></button>
         </div>
         <button id="more" class="btn tool more" type="button" aria-expanded="false" aria-controls="tools"><span class="ico" aria-hidden="true">⋯</span><span class="lbl">More</span></button>
         <button id="play" class="btn btn-play" type="button"><span class="ico" aria-hidden="true">▶&#xFE0E;</span><span class="lbl">Play</span></button>
@@ -88,18 +112,75 @@
     </div>
   </section>
 
+  <!-- data-mode: which Watch buttons show while watching, choosing effects (fx) or making one (js/effects.js) -->
   <section id="watch" class="screen dark watch" aria-label="Watch your video" hidden>
     <div class="watch-top">
-      <button id="watch-back" class="btn chip" type="button"><span class="ico" aria-hidden="true">←</span><span class="lbl">Beats</span></button>
-      <button id="watch-delete" class="btn chip" type="button"><span class="ico" aria-hidden="true">🗑</span><span class="lbl">Delete</span></button>
+      <button id="watch-back" class="btn chip" type="button" data-mode="watch"><span class="ico" aria-hidden="true">←</span><span class="lbl">Beats</span></button>
+      <button id="watch-delete" class="btn chip" type="button" data-mode="watch"><span class="ico" aria-hidden="true">🗑</span><span class="lbl">Delete</span></button>
+      <button id="fx-close" class="btn chip" type="button" data-mode="fx" hidden><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
     </div>
     <video id="playback" class="playback" controls playsinline></video>
     <p id="watch-note" class="note" hidden></p>
+    <div id="fx-stage" class="fx-stage" data-mode="fx making" hidden>
+      <canvas id="fx-view" class="fx-view" role="img" aria-label="Your video with its effect"></canvas>
+      <p id="fx-status" class="fx-status" role="status" data-mode="making" hidden></p>
+      <div id="fx-handles" class="fx-handles" role="group" aria-label="Stickers on your video"></div>
+      <button id="fx-remove" class="btn fx-remove" type="button" aria-label="Remove sticker" hidden><span class="ico" aria-hidden="true">✕</span></button>
+    </div>
+    <div id="fx-tray" class="fx-tray" data-mode="fx" hidden>
+      <div class="fx-group" role="group" aria-labelledby="fx-colors-name">
+        <p id="fx-colors-name" class="fx-name">Colors</p>
+        <div id="fx-filters" class="fx-row"></div>
+      </div>
+      <div class="fx-group" role="group" aria-labelledby="fx-stickers-name">
+        <p id="fx-stickers-name" class="fx-name">Stickers</p>
+        <div id="fx-sticker-row" class="fx-row"></div>
+      </div>
+    </div>
     <div class="watch-bottom">
-      <button id="watch-again" class="btn chip" type="button"><span class="ico" aria-hidden="true">🔁</span><span class="lbl">Again</span></button>
-      <button id="watch-save" class="btn btn-video btn-big" type="button"><span class="ico" aria-hidden="true">💾</span><span class="lbl">Save</span></button>
+      <button id="watch-again" class="btn chip" type="button" data-mode="watch"><span class="ico" aria-hidden="true">🔁</span><span class="lbl">Again</span></button>
+      <button id="watch-fx" class="btn chip" type="button" data-mode="watch" data-tour="effects" hidden><span class="ico" aria-hidden="true">🪄</span><span class="lbl">Effects</span></button>
+      <button id="watch-save" class="btn btn-video btn-big" type="button" data-mode="watch"><span class="ico" aria-hidden="true">💾</span><span class="lbl">Save</span></button>
+      <button id="fx-use" class="btn btn-video btn-big" type="button" data-mode="fx" hidden><span class="ico" aria-hidden="true">✅</span><span class="lbl">Use it</span></button>
+      <div id="fx-making" class="rec-ctl fx-making" data-mode="making" hidden>
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-track" cx="60" cy="60" r="54"></circle>
+          <circle id="fx-ring-left" class="ring-left" cx="60" cy="60" r="54"></circle>
+        </svg>
+        <button id="fx-stop" class="rec-btn fx-stop" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Stop</span></button>
+        <span id="fx-time" class="rec-time"></span>
+      </div>
     </div>
   </section>
+
+  <!-- Sound kits (task 80, lane B): js/kits.js fills in the cards and the credit line. -->
+  <dialog id="kits" class="kits" aria-labelledby="kits-title">
+    <div class="kits-card">
+      <div class="kits-head">
+        <h2 id="kits-title">Sounds</h2>
+        <button id="kits-close" class="btn tool kits-close" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+      </div>
+      <div class="kit-cards" role="group" aria-labelledby="kits-title"></div>
+      <p class="kit-credit"></p>
+    </div>
+  </dialog>
+
+  <!-- 📋 Copy: a whole beat to another number, or one sound's row onto another sound. -->
+  <div id="copy-sheet" class="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="copy-title">
+      <div class="sheet-head">
+        <h2 id="copy-title">Copy</h2>
+        <button id="copy-close" class="btn tool" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+      </div>
+      <h3 class="sheet-sub">Copy this beat to</h3>
+      <div id="copy-slots" class="copy-slots"></div>
+      <h3 id="copy-row-title" class="sheet-sub">Copy a sound</h3>
+      <p id="copy-hint" class="copy-hint">Tap a sound, then the sound it goes onto.</p>
+      <div id="copy-sounds" class="copy-sounds" role="group" aria-labelledby="copy-row-title"></div>
+    </div>
+  </div>
+
+  <p id="sr-status" class="sr-only" aria-live="polite"></p>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden>
     <span id="toast-msg"></span>
