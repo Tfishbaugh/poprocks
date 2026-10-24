@@ -88,16 +88,44 @@
     </div>
   </section>
 
+  <!-- data-mode: which Watch buttons show while watching, choosing effects (fx) or making one (js/effects.js) -->
   <section id="watch" class="screen dark watch" aria-label="Watch your video" hidden>
     <div class="watch-top">
-      <button id="watch-back" class="btn chip" type="button"><span class="ico" aria-hidden="true">←</span><span class="lbl">Beats</span></button>
-      <button id="watch-delete" class="btn chip" type="button"><span class="ico" aria-hidden="true">🗑</span><span class="lbl">Delete</span></button>
+      <button id="watch-back" class="btn chip" type="button" data-mode="watch"><span class="ico" aria-hidden="true">←</span><span class="lbl">Beats</span></button>
+      <button id="watch-delete" class="btn chip" type="button" data-mode="watch"><span class="ico" aria-hidden="true">🗑</span><span class="lbl">Delete</span></button>
+      <button id="fx-close" class="btn chip" type="button" data-mode="fx" hidden><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
     </div>
     <video id="playback" class="playback" controls playsinline></video>
     <p id="watch-note" class="note" hidden></p>
+    <div id="fx-stage" class="fx-stage" data-mode="fx making" hidden>
+      <canvas id="fx-view" class="fx-view" role="img" aria-label="Your video with its effect"></canvas>
+      <p id="fx-status" class="fx-status" role="status" data-mode="making" hidden></p>
+      <div id="fx-handles" class="fx-handles" role="group" aria-label="Stickers on your video"></div>
+      <button id="fx-remove" class="btn fx-remove" type="button" aria-label="Remove sticker" hidden><span class="ico" aria-hidden="true">✕</span></button>
+    </div>
+    <div id="fx-tray" class="fx-tray" data-mode="fx" hidden>
+      <div class="fx-group" role="group" aria-labelledby="fx-colors-name">
+        <p id="fx-colors-name" class="fx-name">Colors</p>
+        <div id="fx-filters" class="fx-row"></div>
+      </div>
+      <div class="fx-group" role="group" aria-labelledby="fx-stickers-name">
+        <p id="fx-stickers-name" class="fx-name">Stickers</p>
+        <div id="fx-sticker-row" class="fx-row"></div>
+      </div>
+    </div>
     <div class="watch-bottom">
-      <button id="watch-again" class="btn chip" type="button"><span class="ico" aria-hidden="true">🔁</span><span class="lbl">Again</span></button>
-      <button id="watch-save" class="btn btn-video btn-big" type="button"><span class="ico" aria-hidden="true">💾</span><span class="lbl">Save</span></button>
+      <button id="watch-again" class="btn chip" type="button" data-mode="watch"><span class="ico" aria-hidden="true">🔁</span><span class="lbl">Again</span></button>
+      <button id="watch-fx" class="btn chip" type="button" data-mode="watch" data-tour="effects" hidden><span class="ico" aria-hidden="true">🪄</span><span class="lbl">Effects</span></button>
+      <button id="watch-save" class="btn btn-video btn-big" type="button" data-mode="watch"><span class="ico" aria-hidden="true">💾</span><span class="lbl">Save</span></button>
+      <button id="fx-use" class="btn btn-video btn-big" type="button" data-mode="fx" hidden><span class="ico" aria-hidden="true">✅</span><span class="lbl">Use it</span></button>
+      <div id="fx-making" class="rec-ctl fx-making" data-mode="making" hidden>
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-track" cx="60" cy="60" r="54"></circle>
+          <circle id="fx-ring-left" class="ring-left" cx="60" cy="60" r="54"></circle>
+        </svg>
+        <button id="fx-stop" class="rec-btn fx-stop" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Stop</span></button>
+        <span id="fx-time" class="rec-time"></span>
+      </div>
     </div>
   </section>
 

@@ -10,6 +10,7 @@ const FILES = [
   './app.css',
   './manifest.webmanifest',
   './js/main.js',
+  './js/effects.js',
   './js/grid.js',
   './js/pattern.js',
   './js/recorder.js',
