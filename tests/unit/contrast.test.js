@@ -28,7 +28,8 @@ function ratio(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const TRACKS = ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7'];
+// Up to 12 rows (task 84): --c8 to --c11 color rows 9 to 12.
+const TRACKS = Array.from({ length: 12 }, (_, i) => `c${i}`);
 
 const TEXT = [
   ['text', 'bg'], ['text', 'surface'], ['muted', 'bg'], ['muted', 'surface'], ['brand', 'bg'],
@@ -60,7 +61,11 @@ test('the ratio math matches known values', () => {
 
 test('both themes define every color', () => {
   assert.ok(Object.keys(light).length >= 30, `${Object.keys(light).length} colors`);
-  ['bg', 'text', 'c0', 'c7', 'play', 'video', 'rec', 'focus'].forEach((key) => assert.notEqual(light[key], dark[key], key));
+  ['bg', 'text', 'c0', 'c7', 'c11', 'play', 'video', 'rec', 'focus'].forEach((key) => assert.notEqual(light[key], dark[key], key));
+});
+
+test('each of the 12 rows has its own color in both themes', () => {
+  [light, dark].forEach((theme) => assert.equal(new Set(TRACKS.map((c) => theme[c])).size, 12));
 });
 
 test('light theme: text passes 4.5:1', () => check(light, 'light', TEXT, 4.5));
