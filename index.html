@@ -40,6 +40,8 @@
         <button class="slot" type="button" data-slot="2" aria-label="Beat 3">3</button>
         <button class="slot" type="button" data-slot="3" aria-label="Beat 4">4</button>
       </div>
+      <!-- Sound kits (task 80, lane B): shows this beat's kit and opens the picker. -->
+      <button id="sounds" class="btn kit-btn" type="button" aria-haspopup="dialog" aria-label="Sounds: Party"><span class="ico" aria-hidden="true">🎉</span><span class="lbl">Party</span></button>
     </header>
 
     <!-- Longer beats: move along the strip, see where you are, make it longer. -->
@@ -74,6 +76,8 @@
             <button id="shorter" class="btn tool" type="button"><span class="ico" aria-hidden="true">✂️</span><span class="lbl">Shorter</span></button>
             <button id="longer-tool" class="btn tool rail-only" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
           </div>
+          <!-- Sound kits (task 80, lane B): on a phone on its side, Sounds lives here, not in the rail. -->
+          <button id="sounds-tool" class="btn tool rail-only" type="button" aria-haspopup="dialog" aria-label="Sounds: Party"><span class="ico" aria-hidden="true">🎉</span><span class="lbl">Sounds</span></button>
           <button id="last-video" class="btn tool" type="button" hidden><span class="ico" aria-hidden="true">🎬</span><span class="lbl">My video</span></button>
           <button id="help" class="btn tool" type="button"><span class="ico" aria-hidden="true">❓</span><span class="lbl">Help</span></button>
         </div>
@@ -148,6 +152,18 @@
       </div>
     </div>
   </section>
+
+  <!-- Sound kits (task 80, lane B): js/kits.js fills in the cards and the credit line. -->
+  <dialog id="kits" class="kits" aria-labelledby="kits-title">
+    <div class="kits-card">
+      <div class="kits-head">
+        <h2 id="kits-title">Sounds</h2>
+        <button id="kits-close" class="btn tool kits-close" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+      </div>
+      <div class="kit-cards" role="group" aria-labelledby="kits-title"></div>
+      <p class="kit-credit"></p>
+    </div>
+  </dialog>
 
   <!-- 📋 Copy: a whole beat to another number, or one sound's row onto another sound. -->
   <div id="copy-sheet" class="sheet" hidden>

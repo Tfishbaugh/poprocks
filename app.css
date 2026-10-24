@@ -831,3 +831,98 @@ button:disabled { cursor: default; opacity: 0.4; }
   .slot { width: 44px; height: 44px; }
   .grid-wrap { --gutter: 4px; }
 }
+
+/* ---- Sound kits (task 80, lane B) ---- */
+
+.kit-btn {
+  flex: none;
+  min-width: 96px;
+  padding: 0 12px;
+  gap: 6px;
+  border: 3px solid var(--video);
+}
+
+.kits {
+  width: min(640px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--text);
+  overscroll-behavior: contain;
+}
+
+.kits::backdrop { background: rgb(0 0 0 / 0.55); }
+.kits-card { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; }
+.kits-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.kits-head h2 { margin: 0; font-size: 26px; font-weight: 900; }
+.kit-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+
+.kit-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 140px;
+  padding: 12px 8px;
+  border: 4px solid var(--pad-alt);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text);
+  transition: transform 80ms ease-out;
+}
+
+.kit-card:active { transform: scale(0.96); }
+.kit-card .ico { font-size: 48px; }
+.kit-card .lbl { font-size: 22px; font-weight: 900; }
+.kit-sounds { font-size: 15px; line-height: 1.3; text-align: center; overflow-wrap: anywhere; }
+.kit-card[aria-pressed="true"] { border-color: var(--video); }
+
+/* The kit in use: a ✓ badge as well as the colored border. */
+.kit-card[aria-pressed="true"]::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--video);
+  color: var(--on-video);
+  font-size: 18px;
+}
+
+.kit-credit { margin: 0; font-size: 14px; font-weight: 600; color: var(--muted); text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-card:active { transform: none; }
+}
+
+/* Phones: the cards stack, and the PopRocks word makes room for the Sounds button
+   (the heading stays for screen readers). */
+@media (max-width: 520px) {
+  .logo span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .kit-cards { grid-template-columns: 1fr; gap: 8px; }
+  .kit-card { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 84px; padding: 8px 48px 8px 16px; }
+  .kit-card .ico { font-size: 40px; }
+  .kit-sounds { max-width: 9em; margin-left: auto; text-align: right; }
+}
+
+@media (max-width: 400px) {
+  .kit-btn { min-width: 0; padding: 0 8px; gap: 4px; }
+  .kit-sounds { display: none; }
+}
+
+/* Phones on their side: the rail has no room, so Sounds moves under More (#sounds-tool). */
+@media (orientation: landscape) and (max-height: 520px) {
+  .top .kit-btn { display: none; }
+  .kit-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kit-card { flex-direction: column; justify-content: center; min-height: 0; padding: 8px; gap: 2px; }
+  .kit-card .ico { font-size: 36px; }
+  .kit-sounds { max-width: none; margin: 0; text-align: center; }
+}

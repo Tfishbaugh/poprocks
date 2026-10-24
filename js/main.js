@@ -1,13 +1,16 @@
-import { SOUNDS, audioSupported, createEngine, setAudioSession } from './sounds.js';
+import {
+  SOUNDS, audioSupported, createEngine, kitById, kitStarters, setAudioSession, useKit,
+} from './sounds.js';
 import { createScheduler } from './scheduler.js';
 import {
   BAR, BPM_MAX, BPM_MIN, BPM_STEP, MAX_STEPS, canDouble, clear, copyBeat, copyRow, createHistory, double, isEmpty,
-  isOn, longer, shorter, stepCount, surprise, toggle, withBpm,
+  isOn, longer, shorter, stepCount, surprise, toggle, withBpm, withKit,
 } from './pattern.js';
 import { SLOT_COUNT, loadState, saveState } from './slots.js';
 import { createGrid } from './grid.js';
 import { createStrip } from './strip.js';
 import { createCopySheet } from './copy.js';
+import { createKitPicker, labelGrid } from './kits.js';
 import {
   MAX_SECONDS, NO_VIDEO_NOTE, cameraError, canRecord, createMix, openCamera, pickFormat, startRecorder, stopStream,
 } from './recorder.js';
@@ -55,6 +58,8 @@ let deleted = null;
 let toastState = null;
 let pointerType = '';
 let fingerDown = false;
+let shownKit = '';
+let kitSession = null;
 
 const beat = () => state.slots[state.slot];
 const undoStack = () => histories[state.slot];
@@ -131,6 +136,7 @@ function renderTools(current) {
 
 function render() {
   const current = beat();
+  showKit(beatKit());
   grid.render(current);
   renderTools(current);
   document.querySelectorAll('.slot').forEach((button) => {
@@ -202,6 +208,49 @@ function setMore(open) {
 // The tools close on a tap anywhere else, as a kid expects of a pop-up.
 function closeMoreOutside(event) {
   if (isMoreOpen() && !event.target.closest('#tools, #more')) setMore(false);
+}
+
+// ---- Sound kits (task 80, lane B) ----
+
+const beatKit = () => kitById(beat().kit);
+
+// Every row plays, and the grid shows, the sounds of the beat's own kit.
+function showKit(kit) {
+  if (kit.id === shownKit) return;
+  shownKit = kit.id;
+  useKit(kit.id);
+  labelGrid($('grid'), kit.sounds);
+  setButton('sounds', kit.emoji, kit.label);
+  setButton('sounds-tool', kit.emoji, 'Sounds');
+  $('sounds').setAttribute('aria-label', `Sounds: ${kit.label}`);
+  $('sounds-tool').setAttribute('aria-label', `Sounds: ${kit.label}`);
+}
+
+// One visit to the picker is one Undo, however many kits a kid tries on the way.
+function openKits() {
+  setMore(false);
+  kitSession = { before: beatKit().id, pushed: false };
+  kitPicker.open(beatKit().id);
+}
+
+// While the beat plays, the beat itself is the preview.
+function onPickKit(id) {
+  if (id === beatKit().id) return;
+  if (!kitSession.pushed) undoStack().push(beat());
+  kitSession.pushed = true;
+  setBeat(withKit(beat(), id));
+  engine.load();
+  if (!scheduler.playing) engine.preview(id);
+}
+
+function onKitsClosed() {
+  const { before, pushed } = kitSession;
+  kitSession = null;
+  if (!pushed) return;
+  if (before === beatKit().id) return undo();
+  const { emoji, label } = beatKit();
+  const onAction = () => commit(withKit(beat(), before));
+  toast(`${emoji} ${label} sounds`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
 }
 
 // ---- Longer beats and copy (task 80, lane A) ----
@@ -350,6 +399,7 @@ function togglePlay() {
 function onStart() {
   if (!audioSupported()) return showStartNote('This browser can’t play sounds. Try Safari or Chrome.');
   engine ??= createEngine();
+  engine.load();
   scheduler ??= createScheduler({ now: () => engine.ctx.currentTime, onStep, bpm: beat().bpm });
   setAudioSession('playback');
   engine.resume();
@@ -623,6 +673,7 @@ function wakeAudio() {
 }
 
 const grid = createGrid($('grid'), { onToggle, onSound });
+const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
 const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });
 const strip = createStrip({
   wrap: $('grid-wrap'),
@@ -653,7 +704,7 @@ const CLICKS = {
   play: () => togglePlay(),
   slower: () => changeTempo(-BPM_STEP),
   faster: () => changeTempo(BPM_STEP),
-  surprise: () => commit(surprise(beat())),
+  surprise: () => commit(surprise(beat(), Math.random, kitStarters(beat().kit))),
   clear: onClear,
   undo,
   more: () => setMore(!isMoreOpen()),
@@ -670,6 +721,8 @@ const CLICKS = {
   'watch-save': onSave,
   'watch-fx': () => effects.open(lastVideo),
   'toast-action': onToastAction,
+  sounds: openKits,
+  'sounds-tool': openKits,
   longer: onLonger,
   'longer-tool': onLonger,
   shorter: onShorter,

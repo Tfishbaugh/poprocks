@@ -71,7 +71,7 @@ test('the tour runs on first open, one control at a time, and never again', asyn
   await expect(tour(page)).toBeVisible();
   await expect(page.locator('.tour-next')).toBeFocused();
   await expect(page.locator('.tour-text')).toHaveText('Tap squares to make a beat');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'longer']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'longer']);
   await expect(page.locator('#play')).toBeFocused();
   await expect(page.locator('#play')).toContainText('Play');
   expect(await page.evaluate((key) => localStorage.getItem(key), TOUR_KEY)).toBe('["beats"]');
@@ -84,10 +84,10 @@ test('the tour runs on first open, one control at a time, and never again', asyn
 
 test('the last step says Got it! and has no Skip', async ({ page }) => {
   await start(page);
-  for (let i = 0; i < 4; i += 1) await page.click('.tour-next');
+  for (let i = 0; i < 5; i += 1) await page.click('.tour-next');
   await expect(page.locator('.tour-next')).toHaveText('Got it!');
   await expect(page.locator('.tour-skip')).toBeHidden();
-  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(5);
+  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(6);
 });
 
 const ENDINGS = {
@@ -135,7 +135,7 @@ test('❓ Help replays the tour from the start, on a laptop and from More on a p
   await page.click('#help');
   await expect(tour(page)).toBeVisible();
   await expect(page.locator('#more')).toHaveAttribute('aria-expanded', 'false');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'longer']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'longer']);
 });
 
 test('a control that is there gets its step; a missing, hidden or vanished one is skipped', async ({ page }) => {
@@ -178,6 +178,8 @@ test('the first Watch says Save it to keep it, once; Back and Escape close it an
   await openCamera(page);
   await record(page, 1);
   await expect(tour(page)).toBeVisible();
+  expect(await stepName(page), 'the real 🪄 Effects comes first (task 80 effects)').toBe('effects');
+  await page.click('.tour-next');
   expect(await stepName(page)).toBe('save');
   await expect(page.locator('.tour-text')).toHaveText('Save it to keep it!');
   await page.goBack();
@@ -234,7 +236,9 @@ for (const view of SIZES) {
       seen.push(await expectCardClear(page, view));
       await page.click('.tour-next');
     }
-    expect(seen).toEqual(expect.arrayContaining(['pads', 'play', 'video', 'slots', 'sounds']));
+    // On a phone on its side, Sounds (like ➕) waits under More, so its step is skipped there.
+    const side = view.height <= 520 && view.width > view.height;
+    expect(seen).toEqual(expect.arrayContaining(['pads', 'play', 'video', 'slots', ...(side ? [] : ['sounds'])]));
 
     await openCamera(page);
     await record(page, 1);
