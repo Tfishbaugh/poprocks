@@ -542,6 +542,10 @@ button:disabled { cursor: default; opacity: 0.4; }
   .watch-bottom { grid-area: bottom; }
   .watch-top, .watch-bottom { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
   .watch .note { grid-area: video; align-self: start; z-index: 1; background: rgb(0 0 0 / 0.7); }
+
+  /* Effects: the colors and stickers go under the video, next to ✅ Use it. */
+  .watch.fx { grid-template-areas: "video top" "video ." "tray bottom"; }
+  .fx-tray { grid-area: tray; padding-bottom: 6px; }
 }
 
 /* ---- Record ---- */
@@ -667,6 +671,94 @@ button:disabled { cursor: default; opacity: 0.4; }
 }
 
 .watch .note { color: var(--on-chip); padding: 4px 16px; }
+
+/* ---- Effects (task 80): colors and stickers on Watch ---- */
+
+/* js/effects.js lays the stage exactly over the picture inside the video element. */
+.fx-stage { position: fixed; z-index: 1; touch-action: none; }
+.fx-view, .fx-handles { position: absolute; inset: 0; width: 100%; height: 100%; }
+.fx-view { display: block; }
+
+.fx-sticker {
+  position: absolute;
+  padding: 0;
+  border: 3px dashed transparent;
+  border-radius: 16px;
+  background: transparent;
+  touch-action: none;
+}
+
+.fx-sticker.selected { border-color: #FFFFFF; box-shadow: 0 0 0 2px #000000; }
+.fx-remove {
+  position: absolute;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  background: var(--chip);
+  color: var(--on-chip);
+  box-shadow: 0 0 0 2px #FFFFFF;
+}
+
+.fx-status {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.7);
+  color: #FFFFFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fx-tray { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 24px; padding: 4px 8px 0; }
+.fx-group { display: flex; flex-direction: column; gap: 2px; }
+.fx-name { margin: 0; font-size: 14px; }
+.fx-row { display: flex; gap: 4px; }
+
+.fx-item {
+  flex-direction: column;
+  gap: 2px;
+  min-width: 52px;
+  min-height: 60px;
+  padding: 4px 2px;
+  border-radius: 14px;
+  background: var(--chip);
+  color: var(--on-chip);
+}
+
+.fx-item[aria-pressed="true"] { background: var(--stage-video); color: var(--on-stage-video); }
+.fx-item svg, .swatch { width: 28px; height: 28px; flex: none; }
+.swatch { border: 2px solid currentColor; border-radius: 50%; }
+.sw-none { background: var(--chip); }
+.sw-gray { background: linear-gradient(135deg, #FFFFFF, #000000); }
+.sw-rainbow { background: conic-gradient(#FF4F4F, #FFD24D, #7EE081, #6CC8FF, #9AA8FF, #D59BFF, #FF4F4F); }
+.sw-neon { background: #000000; box-shadow: inset 0 0 0 3px #FF6FAE, inset 0 0 0 6px #4FE0D0; }
+.sw-mirror { background: linear-gradient(90deg, #6CC8FF 0 25%, #FFFFFF 25% 75%, #6CC8FF 75%); }
+.sw-comic { background: radial-gradient(#22163A 30%, transparent 34%) 0 0 / 7px 7px, #FFD24D; }
+
+#fx-use, .fx-making { margin-left: auto; }
+.fx-making { position: relative; flex: none; }
+.fx-stop { background: var(--chip); color: var(--on-chip); }
+
+/* Phones on their side: the rail keeps its tight spacing (the plain Watch rule above
+   would win over the one in the phone-on-its-side block), so 🪄 fits at 360 px high. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .watch-top, .watch-bottom { gap: 8px; padding: 8px; }
+}
+
+/* Phones: 🔁 and 🪄 stand their words under their icons, so Save keeps its size. */
+@media (max-width: 480px) {
+  .watch-bottom { gap: 8px; }
+  .watch-bottom .chip { flex-direction: column; gap: 2px; min-height: 64px; padding: 4px 10px; border-radius: 18px; }
+  .watch-bottom .btn-big { min-width: 136px; }
+}
 
 /* ---- Toast ---- */
 

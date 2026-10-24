@@ -16,6 +16,7 @@ import {
 } from './recorder.js';
 import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
+import { createEffects } from './effects.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -84,6 +85,7 @@ function syncHistory(name) {
 
 function onBack() {
   if (copySheet.isOpen) return copySheet.close();
+  if (screen === 'watch' && effects.back()) return; // Effects closes first (task 80)
   BACK[screen]?.();
 }
 
@@ -567,8 +569,10 @@ function onHide() {
 
 // ---- Watching and saving ----
 
+// A video made with an effect keeps its original, so both go together.
 function forget(video) {
   if (video) URL.revokeObjectURL(video.url);
+  if (video?.original) URL.revokeObjectURL(video.original.url);
 }
 
 function forgetDeleted() {
@@ -614,6 +618,25 @@ function undoDelete() {
   showWatch();
 }
 
+// ---- Effects (task 80): a made video takes the original's place, with Undo ----
+
+// A made copy is let go once nothing can bring it back; an original stays with its copies.
+function dropCopy(video) {
+  if (video.original && video !== lastVideo) URL.revokeObjectURL(video.url);
+}
+
+function useVideo(next, message) {
+  const before = lastVideo;
+  lastVideo = next;
+  showWatch();
+  const undoVideo = () => {
+    lastVideo = before;
+    dropCopy(next);
+    showWatch();
+  };
+  toast(message, { action: 'Undo', ms: 10_000, onAction: undoVideo, onEnd: () => dropCopy(before) });
+}
+
 async function onSave() {
   $('playback').pause();
   const file = new File([lastVideo.blob], fileName(new Date(), lastVideo.format.ext), { type: lastVideo.format.type });
@@ -651,6 +674,7 @@ function wakeAudio() {
 
 const grid = createGrid($('grid'), { onToggle, onSound });
 const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
+const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });
 const strip = createStrip({
   wrap: $('grid-wrap'),
   map: $('strip-map'),
@@ -695,6 +719,7 @@ const CLICKS = {
   'watch-delete': onDelete,
   'watch-again': onMakeVideo,
   'watch-save': onSave,
+  'watch-fx': () => effects.open(lastVideo),
   'toast-action': onToastAction,
   sounds: openKits,
   'sounds-tool': openKits,

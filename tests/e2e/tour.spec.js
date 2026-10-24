@@ -179,6 +179,8 @@ test('the first Watch says Save it to keep it, once; Back and Escape close it an
   await openCamera(page);
   await record(page, 1);
   await expect(tour(page)).toBeVisible();
+  expect(await stepName(page), 'the real 🪄 Effects comes first (task 80 effects)').toBe('effects');
+  await page.click('.tour-next');
   expect(await stepName(page)).toBe('save');
   await expect(page.locator('.tour-text')).toHaveText('Save it to keep it!');
   await page.goBack();
