@@ -115,3 +115,20 @@ test('on a phone, More shows a dot while a video waits under it', async ({ page 
   await page.click('#watch-delete');
   await expect(page.locator('#more')).not.toHaveClass(/has-video/);
 });
+
+test('if filming fails to start, the kid sees why and can try again', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Real = window.MediaRecorder;
+    window.MediaRecorder = class extends Real {
+      constructor() {
+        throw new DOMException('no', 'NotSupportedError');
+      }
+    };
+  });
+  await startApp(page);
+  await openCamera(page);
+  await page.click('#rec-btn');
+  await expect(page.locator('#rec-msg')).toContainText('Try again', { timeout: 6000 });
+  await expect(page.locator('#rec-btn')).toBeEnabled();
+  await expect(page.locator('#rec-btn')).toContainText('Record');
+});

@@ -256,6 +256,7 @@ async function openRecordCamera() {
     return recordMessage(cameraError(error), true);
   }
   if (screen !== 'record' || document.hidden) return stopStream(stream);
+  stopStream(camera);
   camera = stream;
   setAudioSession('play-and-record');
   engine.resume();
@@ -308,7 +309,14 @@ function beginRecording() {
   cancelCountdown();
   mix = createMix(engine, camera);
   mix.setMic(micOn);
-  recorder = startRecorder(mix.stream, format, onRecorded);
+  try {
+    recorder = startRecorder(mix.stream, format, onRecorded);
+  } catch {
+    mix.close();
+    mix = null;
+    return recordMessage('Filming didn’t start. Try again.', false);
+  }
+  $('rec-card').hidden = true;
   recordStart = performance.now();
   recordTimer = setTimeout(stopRecording, MAX_SECONDS * 1000);
   scheduler.setBpm(beat().bpm);
@@ -333,6 +341,7 @@ function stopRecording() {
   if (recorder.state !== 'inactive') recorder.stop();
   recorder = null;
   stopPlaying();
+  $('rec-btn').disabled = true;
   $('rec-btn').classList.remove('recording');
   $('rec-time').hidden = true;
   $('ring-left').style.strokeDashoffset = '0';
@@ -408,6 +417,7 @@ function onDelete() {
 }
 
 function undoDelete() {
+  if (!deleted) return;
   lastVideo = deleted;
   deleted = null;
   setHasVideo(true);

@@ -78,6 +78,22 @@ test('a camera that is still opening when you leave is closed straight away', as
   expect(await liveTracks(page)).toBe(0);
 });
 
+test('opening the camera twice in a hurry leaves only one camera on', async ({ page }) => {
+  await page.addInitScript(() => {
+    const open = navigator.mediaDevices.getUserMedia;
+    navigator.mediaDevices.getUserMedia = (c) => new Promise((done) => setTimeout(() => done(open(c)), 600));
+  });
+  await startApp(page);
+  await page.click('#make-video');
+  await page.click('#rec-close');
+  await page.click('#make-video');
+  await expect(page.locator('#rec-btn')).toBeEnabled();
+  await page.waitForTimeout(1200);
+  expect(await liveTracks(page)).toBe(2);
+  await page.click('#rec-close');
+  await expect.poll(() => liveTracks(page)).toBe(0);
+});
+
 test('a blocked camera gets a friendly message and a retry', async ({ page }) => {
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('no', 'NotAllowedError'));
