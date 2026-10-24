@@ -46,7 +46,8 @@ test('copy a sound: tap the sound, then the sound it goes onto', async ({ page }
   await startApp(page);
   await page.click('#copy');
   await page.locator('.copy-sound[data-track="0"]').click();
-  await expect(page.locator('#copy-row-title')).toHaveText('Paste Kick onto…');
+  await expect(page.locator('#copy-row-title')).toHaveText('👉 Now tap where Kick goes');
+  await expect(page.locator('#copy-sounds')).toHaveClass(/picking/);
   await expect(page.locator('.copy-sound[data-track="0"]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('.copy-sound[data-track="1"]').click();
   await expect(page.locator('#copy-sheet')).toBeHidden();
@@ -115,3 +116,17 @@ test('on a phone, Copy is under More and the sheet fits', async ({ page }) => {
     expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
   }
 });
+
+for (const size of [{ width: 740, height: 360 }, { width: 852, height: 393 }]) {
+  test(`on a phone on its side (${size.width}×${size.height}) every Copy target shows without scrolling`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    await page.click('#more');
+    await page.click('#copy');
+    const card = await page.locator('.sheet-card').boundingBox();
+    for (const target of await page.locator('.copy-slot, .copy-sound').all()) {
+      const box = await target.boundingBox();
+      expect(box.y + box.height, await target.getAttribute('aria-label')).toBeLessThanOrEqual(card.y + card.height);
+    }
+  });
+}

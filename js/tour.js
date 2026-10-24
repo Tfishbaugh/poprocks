@@ -3,6 +3,8 @@
 // Steps find their control by id or data-tour name and skip any that isn't on screen, so
 // controls that come and go (a kit button, an effects button a browser can't run) never break it.
 
+import { el } from './dom.js';
+
 export const TOUR_KEY = 'poprocks.tour';
 const GAP = 16;
 const RING = 8;
@@ -73,13 +75,6 @@ export function placeCard(box, card, view) {
     left: clamp(pick.left, GAP, view.width - card.width - GAP),
     top: clamp(pick.top, GAP, view.height - card.height - GAP),
   };
-}
-
-function el(tag, className, text = '') {
-  const node = document.createElement(tag);
-  node.className = className;
-  node.textContent = text;
-  return node;
 }
 
 function build() {
@@ -208,7 +203,8 @@ function close() {
     ownPop = true;
     history.back();
   }
-  if (opener?.isConnected && isShown(opener)) opener.focus({ preventScroll: true });
+  const back = opener?.isConnected && isShown(opener) ? opener : document.getElementById('more');
+  if (back && isShown(back)) back.focus({ preventScroll: true });
 }
 
 // The tour's own Back, or the one that closes it, never reaches the screens underneath.

@@ -4,7 +4,6 @@
 
 export const TRACKS = 8;
 export const BAR = 16;
-export const STEPS = BAR; // a starter beat's length, and how much ➕ and ✂️ add or take away
 export const MAX_STEPS = 64;
 export const DEFAULT_KIT = 'party';
 export const BPM_MIN = 60;
@@ -127,7 +126,7 @@ function isValidRow(row, steps) {
 export function isValidBeat(value) {
   if (!value || typeof value !== 'object') return false;
   if (!Number.isFinite(value.bpm) || value.bpm < BPM_MIN || value.bpm > BPM_MAX) return false;
-  if (value.kit !== undefined && !KIT.test(value.kit)) return false;
+  if (value.kit !== undefined && !(typeof value.kit === 'string' && KIT.test(value.kit))) return false;
   if (!Array.isArray(value.rows) || value.rows.length !== TRACKS) return false;
   const steps = value.rows[0]?.length;
   return isValidLength(steps) && value.rows.every((row) => isValidRow(row, steps));

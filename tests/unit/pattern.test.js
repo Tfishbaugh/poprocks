@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  BPM_MAX, BPM_MIN, DEFAULT_KIT, MAX_STEPS, STARTERS, STEPS, TRACKS, canDouble, clear, copyBeat, copyRow, createHistory,
+  BAR, BPM_MAX, BPM_MIN, DEFAULT_KIT, MAX_STEPS, STARTERS, TRACKS, canDouble, clear, copyBeat, copyRow, createHistory,
   double, emptyBeat, isEmpty, isOn, isValidBeat, longer, shorter, stepCount, surprise, toggle, withBpm, withKit,
 } from '../../js/pattern.js';
 import { SOUNDS } from '../../js/sounds.js';
 
 test('there are 8 sounds and 16 steps', () => {
   assert.equal(TRACKS, 8);
-  assert.equal(STEPS, 16);
+  assert.equal(BAR, 16);
   assert.equal(SOUNDS.length, TRACKS);
 });
 
@@ -170,6 +170,7 @@ test('beats of 16, 32, 48 and 64 steps are valid; other lengths and mixed rows a
   assert.equal(isValidBeat(mixed), false);
   assert.equal(isValidBeat({ ...emptyBeat(), kit: 'Rock Kit!' }), false);
   assert.equal(isValidBeat({ ...emptyBeat(), kit: 'kpop' }), true);
+  [['rock'], 12, null, { toString: () => 'rock' }].forEach((kit) => assert.equal(isValidBeat({ ...emptyBeat(), kit }), false, String(kit)));
 });
 
 test('surprise can use a kit’s own starters', () => {

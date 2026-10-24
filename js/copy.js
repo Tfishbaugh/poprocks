@@ -2,20 +2,7 @@
 // Copying a sound takes two taps: the sound to copy, then the sound it goes onto.
 
 import { isEmpty } from './pattern.js';
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text) node.textContent = text;
-  return node;
-}
-
-function button(className, label) {
-  const node = el('button', `btn ${className}`);
-  node.type = 'button';
-  node.setAttribute('aria-label', label);
-  return node;
-}
+import { button, el } from './dom.js';
 
 function drawRow(ctx, row, track, color) {
   const width = ctx.canvas.width / row.length;
@@ -66,7 +53,9 @@ export function createCopySheet({ root, slotsBox, soundsBox, rowTitle, slots, cu
   function pick(track) {
     from = track;
     const name = sounds()[track]?.label;
-    rowTitle.textContent = track < 0 ? 'Copy a sound' : `Paste ${name} onto…`;
+    rowTitle.textContent = track < 0 ? 'Copy a sound' : `👉 Now tap where ${name} goes`;
+    rowTitle.classList.toggle('now', track >= 0);
+    soundsBox.classList.toggle('picking', track >= 0);
     soundsBox.querySelectorAll('.copy-sound').forEach((node) => {
       node.setAttribute('aria-pressed', String(Number(node.dataset.track) === track));
     });

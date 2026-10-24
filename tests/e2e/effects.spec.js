@@ -384,3 +384,29 @@ for (const size of SIZES) {
     await expect(toast(page)).toContainText('added ✓', { timeout: 15_000 });
   });
 }
+
+// ---- Review fixes at integration (task 80) ----
+
+test('✕ Close keeps the chosen color and stickers as a draft for next time', async ({ page }) => {
+  await filmed(page);
+  await openEffects(page);
+  await pick(page, 'fx-filters', 'Comic');
+  await pick(page, 'fx-sticker-row', 'Star');
+  await page.click('#fx-close');
+  await expect(page.locator('#watch-save')).toBeVisible();
+  await openEffects(page);
+  await expect(page.locator('#fx-filters button', { hasText: 'Comic' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.fx-sticker')).toHaveCount(1);
+});
+
+test('opening 🪄 again ends the last effect’s Undo, so the video never breaks', async ({ page }) => {
+  await filmed(page);
+  await makeRainbow(page);
+  const rainbow = await src(page);
+  await page.click('#watch-fx');
+  await expect(page.locator('#fx-tray')).toBeVisible();
+  await expect(page.locator('#toast')).toBeHidden();
+  await page.click('#fx-close');
+  await expect.poll(() => src(page)).toBe(rainbow);
+  await expect.poll(() => page.locator('#playback').evaluate((v) => v.error === null && v.readyState > 0)).toBe(true);
+});

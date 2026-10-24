@@ -193,3 +193,61 @@ test('on a phone on its side, ❮ ❯ sit in the rail and ➕ is under More', as
   await page.click('#strip-next');
   await expect.poll(() => uncovered(pad(page, 0, 16))).toBe(true);
 });
+
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true });
+
+  // A touch pan sends pointercancel while the finger stays down; the grid must still wait.
+  test('a finger held on the grid keeps the playhead from moving it, even past 8 s', async ({ page }) => {
+    test.setTimeout(60_000);
+    await startApp(page);
+    await makeLong(page, 3);
+    await fastest(page);
+    await page.locator('#grid-wrap').evaluate((el) => { el.scrollLeft = 0; });
+    await recordPlayhead(page);
+    await page.click('#play');
+    const box = await pad(page, 4, 2).boundingBox();
+    const cdp = await page.context().newCDPSession(page);
+    const at = (dx) => [{ x: box.x + 20 + dx, y: box.y + 20 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(0) });
+    for (const dx of [-10, -30, -60, -90]) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(dx) });
+    await page.waitForTimeout(500); // the pan itself settles
+    const held = await scrolled(page);
+    await page.waitForTimeout(9500);
+    expect(await played(page, 40), 'the playhead went past the screen').toBe(true);
+    expect(await scrolled(page), 'the grid stayed where the finger put it').toBe(held);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.click('#play');
+  });
+});
+
+test('on a wide screen ❮ ❯ land each 16 steps right after the sound names', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startApp(page);
+  await makeLong(page, 2);
+  await page.locator('#grid-wrap').evaluate((el) => { el.scrollLeft = 0; });
+  // The section's first pad starts at the names' edge, never under them (at the very end the strip
+  // can't scroll further, so it may sit a gutter's width past the edge).
+  const fits = async (step) => {
+    const names = await page.locator('.sound').first().boundingBox();
+    const first = await pad(page, 0, step).boundingBox();
+    const gap = first.x - (names.x + names.width);
+    return gap >= -1 && gap < 16;
+  };
+  await page.click('#strip-next');
+  await expect.poll(() => fits(16)).toBe(true);
+  await page.click('#strip-next');
+  await expect.poll(() => fits(32)).toBe(true);
+  await page.click('#strip-back');
+  await expect.poll(() => fits(16)).toBe(true);
+  await page.click('#strip-back');
+  await expect.poll(() => scrolled(page)).toBe(0);
+});
+
+test('✂️ Shorter shows where the beat now ends', async ({ page }) => {
+  await startApp(page);
+  await makeLong(page, 3);
+  await page.locator('#grid-wrap').evaluate((el) => { el.scrollLeft = 0; });
+  await page.click('#shorter');
+  await expect.poll(() => uncovered(pad(page, 0, 47))).toBe(true);
+});

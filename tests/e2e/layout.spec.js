@@ -234,3 +234,26 @@ for (const size of [{ width: 360, height: 640 }, { width: 852, height: 393 }, { 
     expect(await unreachablePads(page)).toEqual([]);
   });
 }
+
+test('in the More tray, Speed, Beat and the rest each get their own row', async ({ page }) => {
+  for (const size of [{ width: 360, height: 640 }, { width: 740, height: 360 }]) {
+    await page.setViewportSize(size);
+    await startApp(page);
+    await page.click('#more');
+    const top = async (selector) => (await page.locator(selector).boundingBox()).y;
+    expect(await top('#surprise'), `${size.width}: Beat below Speed`).toBeGreaterThan(await top('#slower') + 20);
+    expect(await top('#help'), `${size.width}: the rest below Beat`).toBeGreaterThan(await top('#surprise') + 20);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('Back closes the Sounds picker and stays in the app', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await startApp(page);
+  await page.click('#sounds');
+  await expect(page.locator('#kits')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#kits')).toBeHidden();
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => history.state)).toBeNull();
+});

@@ -2,6 +2,8 @@
 // the beat is playing, and tapping or dragging the map jumps there. Upright screens scroll
 // down, wide ones across; the map is a timeline either way.
 
+const NEAR = 20;
+
 const AXES = {
   across: { pos: 'scrollLeft', size: 'scrollWidth', client: 'clientWidth', key: 'left', names: 'width' },
   down: { pos: 'scrollTop', size: 'scrollHeight', client: 'clientHeight', key: 'top', names: 'height' },
@@ -32,11 +34,27 @@ export function createStrip({ wrap, map, view, dot, back, next, turned, onMove, 
     requestAnimationFrame(update);
   }
 
-  // A screenful, less the pinned sound names, so the next unseen step lands right after them.
+  // How far each 16-step section starts past the pinned sound names (negative: already passed).
+  function barOffsets() {
+    const a = axis();
+    const edge = wrap.getBoundingClientRect()[a.key] + namesSize(); // where the pinned names end
+    const starts = wrap.querySelectorAll('.pad[data-track="0"]:is([data-step="0"], .bar-start)');
+    return [...starts].map((pad) => pad.getBoundingClientRect()[a.key] - edge);
+  }
+
+  // The next (or previous) section start when it's within a screenful, so pads never sit half
+  // under the names; otherwise a screenful, which lands right after them.
   function page(direction) {
     const a = axis();
+    const screen = wrap[a.client] - namesSize();
+    const offsets = barOffsets();
+    // A start within half a pad of the names is the one on screen now, not the next one.
+    const target = direction > 0 ? offsets.find((d) => d > NEAR) : offsets.filter((d) => d < -NEAR).pop();
+    const jump = target !== undefined && Math.abs(target) <= screen + 1 ? target : direction * screen;
+    const to = Math.max(0, wrap[a.pos] + jump);
     onMove();
-    wrap.scrollBy({ [a.key]: direction * (wrap[a.client] - namesSize()), behavior: smooth() ? 'smooth' : 'auto' });
+    // Near the start means the start, padding and all.
+    wrap.scrollTo({ [a.key]: to <= NEAR ? 0 : to, behavior: smooth() ? 'smooth' : 'auto' });
   }
 
   function jumpTo(event) {

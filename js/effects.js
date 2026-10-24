@@ -3,6 +3,7 @@
 // video's own sound, into a new video. The original is always kept, so effects never stack.
 
 import { startRecorder } from './recorder.js';
+import { button, el } from './dom.js';
 
 export const FILTERS = [
   { id: 'none', label: 'None' },
@@ -240,10 +241,16 @@ function stickerIcon({ parts }) {
   const svg = document.createElementNS(SVG, 'svg');
   svg.setAttribute('viewBox', '-8 -8 116 116');
   svg.setAttribute('aria-hidden', 'true');
-  const edges = parts.map(([, d]) => svgPath(d, { fill: 'none', stroke: '#FFFFFF', 'stroke-width': 14, 'stroke-linejoin': 'round' }));
-  const fills = parts.map(([fill, d]) => svgPath(d, { fill, stroke: INK, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
-  svg.append(...edges, ...fills);
+  svg.append(...iconEdges(parts), ...iconFills(parts));
   return svg;
+}
+
+function iconEdges(parts) {
+  return parts.map(([, d]) => svgPath(d, { fill: 'none', stroke: '#FFFFFF', 'stroke-width': 14, 'stroke-linejoin': 'round' }));
+}
+
+function iconFills(parts) {
+  return parts.map(([fill, d]) => svgPath(d, { fill, stroke: INK, 'stroke-width': 4, 'stroke-linejoin': 'round' }));
 }
 
 // ---- Sound ----
@@ -275,14 +282,9 @@ async function rewind(video) {
 
 const $ = (id) => document.getElementById(id);
 
-function button(className, label, icon) {
-  const node = document.createElement('button');
-  node.type = 'button';
-  node.className = `btn ${className}`;
-  const text = document.createElement('span');
-  text.className = 'lbl';
-  text.textContent = label;
-  node.append(icon, text);
+function choice(className, label, icon) {
+  const node = button(className);
+  node.append(icon, el('span', 'lbl', label));
   return node;
 }
 
@@ -308,8 +310,8 @@ export function createEffects({ audio, format, onMade, toast }) {
   const glCanvas = document.createElement('canvas');
   const filter = effectsSupported(format) ? createFilter(glCanvas) : null;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const filterButtons = FILTERS.map(({ id, label }) => button('fx-item', label, swatch(id)));
-  const stickerButtons = STICKERS.map((sticker) => button('fx-item', sticker.label, stickerIcon(sticker)));
+  const filterButtons = FILTERS.map(({ id, label }) => choice('fx-item', label, swatch(id)));
+  const stickerButtons = STICKERS.map((sticker) => choice('fx-item', sticker.label, stickerIcon(sticker)));
 
   let mode = 'watch';
   let current = null;
@@ -368,17 +370,24 @@ export function createEffects({ audio, format, onMade, toast }) {
 
   // ---- Choosing ----
 
-  function renderChoices() {
+  function markFilter() {
     filterButtons.forEach((node, i) => node.setAttribute('aria-pressed', String(FILTERS[i].id === settings.filter)));
+  }
+
+  function limitStickers() {
     stickerButtons.forEach((node) => { node.disabled = settings.stickers.length >= MAX_STICKERS; });
+  }
+
+  function renderChoices() {
+    markFilter();
+    limitStickers();
     renderHandles();
   }
 
   // See-through buttons over the drawn stickers: they take the drags, taps and keys.
   function handle(sticker, index) {
-    const node = document.createElement('button');
+    const node = el('button', index === selected ? 'fx-sticker selected' : 'fx-sticker');
     node.type = 'button';
-    node.className = index === selected ? 'fx-sticker selected' : 'fx-sticker';
     node.dataset.index = index;
     node.setAttribute('aria-label', `${STICKERS.find(({ id }) => id === sticker.id).label} sticker`);
     const box = stickerBox(sticker, view.width, view.height);
@@ -476,7 +485,8 @@ export function createEffects({ audio, format, onMade, toast }) {
     if (!filter || !video) return;
     current = video;
     base = video.original ?? video;
-    settings = copy(video.effect ?? plain());
+    // A draft left by ✕, Back or Escape comes back, so closing never loses a kid's choices.
+    settings = copy(video.draft ?? video.effect ?? plain());
     selected = -1;
     soundOf(audio(), base).catch(() => {});
     setMode('fx');
@@ -498,12 +508,14 @@ export function createEffects({ audio, format, onMade, toast }) {
   }
 
   function close() {
+    current.draft = copy(settings);
     leave();
     showVideo(current);
     $('watch-fx').focus({ preventScroll: true });
   }
 
   function use() {
+    current.draft = undefined;
     if (sameSettings(settings, current.effect ?? plain())) return close();
     if (!isPlain(settings)) return make();
     leave();

@@ -2,18 +2,12 @@
 // plays a little preview; the picker stays open so kids can try them all.
 
 import { KITS, SAMPLES } from './sounds.js';
+import { el } from './dom.js';
 
 const names = (list) => `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
 
 // No links: the names are a thank-you, and LICENSES says where each sound came from.
 export const CREDIT = `Guitar, crash and Hey! sounds by ${names(Object.values(SAMPLES))} (CC0, from Freesound).`;
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text) node.textContent = text;
-  return node;
-}
 
 function hidden(node) {
   node.setAttribute('aria-hidden', 'true');
@@ -58,12 +52,6 @@ export function createKitPicker(dialog, { onPick, onClose }) {
       mark(id);
       dialog.showModal();
       cards.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
-    },
-    close() {
-      dialog.close();
-    },
-    get isOpen() {
-      return dialog.open;
     },
   };
 }

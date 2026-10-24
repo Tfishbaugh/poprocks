@@ -85,6 +85,7 @@ function syncHistory(name) {
 
 function onBack() {
   if (copySheet.isOpen) return copySheet.close();
+  if ($('kits').open) return $('kits').close();
   if (screen === 'watch' && effects.back()) return; // Effects closes first (task 80)
   BACK[screen]?.();
 }
@@ -231,6 +232,7 @@ function openKits() {
   setMore(false);
   kitSession = { before: beatKit().id, pushed: false };
   kitPicker.open(beatKit().id);
+  history.pushState({ poprocks: 'kits' }, '');
 }
 
 // While the beat plays, the beat itself is the preview.
@@ -244,6 +246,7 @@ function onPickKit(id) {
 }
 
 function onKitsClosed() {
+  if (history.state?.poprocks === 'kits') history.back();
   const { before, pushed } = kitSession;
   kitSession = null;
   if (!pushed) return;
@@ -279,6 +282,7 @@ function onShorter() {
   const before = beat();
   if (stepCount(before) <= BAR) return;
   commit(shorter(before));
+  strip.showStep(grid.stepPad(stepCount(beat()) - 1));
   withUndo('Made shorter.', before);
 }
 
@@ -719,7 +723,8 @@ const CLICKS = {
   'watch-delete': onDelete,
   'watch-again': onMakeVideo,
   'watch-save': onSave,
-  'watch-fx': () => effects.open(lastVideo),
+  // An effect's Undo toast would swap the video under the open Effects, so it ends here.
+  'watch-fx': () => { closeToast(); effects.open(lastVideo); },
   'toast-action': onToastAction,
   sounds: openKits,
   'sounds-tool': openKits,
@@ -734,10 +739,12 @@ const CLICKS = {
 initTour(storage); // before the popstate and keydown listeners below, so the tour hears Back and Escape first
 Object.entries(CLICKS).forEach(([id, handler]) => $(id).addEventListener('click', handler));
 $('slots').addEventListener('click', onSlot);
+// A touch pan sends pointercancel while the finger stays down, so touches end on touchend.
 $('grid-wrap').addEventListener('pointerdown', () => { fingerDown = true; touchGrid(); }, { passive: true });
 $('grid-wrap').addEventListener('wheel', touchGrid, { passive: true });
 window.addEventListener('pointerup', fingerUp, { passive: true });
-window.addEventListener('pointercancel', fingerUp, { passive: true });
+window.addEventListener('touchend', fingerUp, { passive: true });
+window.addEventListener('touchcancel', fingerUp, { passive: true });
 document.addEventListener('keydown', onKeydown);
 document.addEventListener('pointerdown', wakeAudio, { passive: true });
 document.addEventListener('pointerdown', closeMoreOutside, { passive: true });
