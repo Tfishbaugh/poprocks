@@ -144,8 +144,9 @@ function fitted(starter, current) {
 }
 
 // A random starter beat that differs from the one on screen. It keeps the beat's length and kit.
-export function surprise(current, random = Math.random) {
-  const choices = STARTERS.map((starter) => fitted(starter, current)).filter((beat) => !sameRows(beat, current));
+// Each kit can bring its own starters (rows keep their job, but row 4 is a crash in Rock).
+export function surprise(current, random = Math.random, starters = STARTERS) {
+  const choices = starters.map((starter) => fitted(starter, current)).filter((beat) => !sameRows(beat, current));
   return choices[Math.floor(random() * choices.length)];
 }
 
