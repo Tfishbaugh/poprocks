@@ -262,7 +262,7 @@ async function sideBySide(page, left, right) {
     sameRow: Math.abs(a.y - b.y) < 2 && Math.abs(a.height - b.height) < 2,
     nextTo: gap >= 0 && gap <= 12,
     sameSize: Math.abs(a.width - b.width) < 8,
-    big: Math.min(a.width, b.width) >= 48 && Math.min(a.height, b.height) >= 44,
+    big: Math.min(a.width, b.width, a.height, b.height) >= 48,
   };
 }
 
@@ -295,6 +295,29 @@ test('on a phone on its side, ➖ and ➕ fold into More, side by side', async (
   expect(await padCount(page)).toBe(128);
   await expect(page.locator('#shorter-tool')).toBeDisabled();
 });
+
+// The "Made shorter." toast must never sit on ➖: a quick second tap would hit its Undo.
+const free = (locator) => locator.evaluate((node) => {
+  const box = node.getBoundingClientRect();
+  return node.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+});
+
+for (const size of [{ width: 360, height: 640 }, { width: 820, height: 1180 }, { width: 1280, height: 800 }, { width: 640, height: 360 }]) {
+  test(`at ${size.width}×${size.height} a quick second ➖ makes it shorter again, not Undo`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    const folded = !(await page.locator('#shorter').isVisible());
+    const shorterBtn = page.locator(folded ? '#shorter-tool' : '#shorter');
+    if (folded) await page.click('#more');
+    await page.click(folded ? '#longer-tool' : '#longer');
+    await page.click(folded ? '#longer-tool' : '#longer');
+    await shorterBtn.click();
+    await expect(page.locator('#toast:not([hidden])')).toContainText('Made shorter');
+    expect(await free(shorterBtn), 'the toast leaves ➖ free').toBe(true);
+    await shorterBtn.click({ timeout: 1000 });
+    expect(await padCount(page)).toBe(128);
+  });
+}
 
 test('➖ greys out at 16 steps, and one ↩ undoes it', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });

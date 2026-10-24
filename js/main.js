@@ -95,11 +95,17 @@ function setButton(id, icon, label) {
   $(id).querySelector('.lbl').textContent = label;
 }
 
+// On Beats the toast sits just under the strip, so a quick second ➖ never lands on its Undo.
+function toastTop() {
+  return screen === 'beats' ? `${$('strip-nav').getBoundingClientRect().bottom + 8}px` : '';
+}
+
 function toast(message, { action = '', ms = 3000, onAction = null, onEnd = null, slot = -1 } = {}) {
   closeToast();
   $('toast-msg').textContent = message;
   $('toast-action').textContent = action;
   $('toast-action').hidden = !action;
+  $('toast').style.top = toastTop();
   $('toast').hidden = false;
   toastState = { onAction, onEnd, slot, timer: setTimeout(closeToast, ms) };
 }
