@@ -131,6 +131,7 @@ function renderTools(current) {
   $('undo').disabled = !undoStack().canUndo;
   $('double').disabled = !canDouble(current);
   $('shorter').disabled = steps <= BAR;
+  $('shorter-tool').disabled = steps <= BAR;
   $('longer').disabled = steps >= MAX_STEPS;
   $('longer-tool').disabled = steps >= MAX_STEPS;
 }
@@ -731,6 +732,7 @@ const CLICKS = {
   longer: onLonger,
   'longer-tool': onLonger,
   shorter: onShorter,
+  'shorter-tool': onShorter,
   double: onDouble,
   copy: () => copySheet.open(),
   'copy-close': () => copySheet.close(),

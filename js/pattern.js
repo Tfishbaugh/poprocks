@@ -85,7 +85,7 @@ export function longer(beat) {
   return mapRows(beat, (row) => row + row.slice(-BAR));
 }
 
-// ✂️ Shorter: takes the last 16 steps away.
+// ➖ Shorter: takes the last 16 steps away.
 export function shorter(beat) {
   if (stepCount(beat) <= BAR) return beat;
   return mapRows(beat, (row) => row.slice(0, -BAR));
