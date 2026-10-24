@@ -42,19 +42,38 @@
       </div>
     </header>
 
+    <!-- Longer beats: move along the strip, see where you are, make it longer. -->
+    <div id="strip-nav" class="strip-nav" role="group" aria-label="Move along the beat">
+      <button id="strip-back" class="btn tool nav-btn" type="button" aria-controls="grid-wrap"><span class="ico" aria-hidden="true">❮</span><span class="lbl">Back</span></button>
+      <div id="strip-map" class="strip-map" aria-hidden="true">
+        <div id="strip-view" class="strip-view"></div>
+        <div id="strip-dot" class="strip-dot" hidden></div>
+      </div>
+      <button id="strip-next" class="btn tool nav-btn" type="button" aria-controls="grid-wrap"><span class="ico" aria-hidden="true">❯</span><span class="lbl">Next</span></button>
+      <button id="longer" class="btn tool longer" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
+    </div>
+
     <div class="grid-wrap" id="grid-wrap">
       <div id="grid" class="grid" role="group" aria-label="Beat pads"></div>
     </div>
 
     <footer class="bar-wrap">
       <div id="bar" class="bar">
-        <div id="tools" class="tools" role="group" aria-label="Beat tools">
-          <button id="slower" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐢</span><span class="lbl">Slower</span></button>
-          <output id="bpm" class="tool speed" aria-live="polite"><span class="num">100</span><span class="lbl">Speed</span></output>
-          <button id="faster" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐇</span><span class="lbl">Faster</span></button>
-          <button id="surprise" class="btn tool" type="button"><span class="ico" aria-hidden="true">🎲</span><span class="lbl">Surprise</span></button>
-          <button id="clear" class="btn tool" type="button"><span class="ico" aria-hidden="true">🧽</span><span class="lbl">Clear</span></button>
-          <button id="undo" class="btn tool" type="button"><span class="ico" aria-hidden="true">↩</span><span class="lbl">Undo</span></button>
+        <div id="tools" class="tools">
+          <div class="tool-group" role="group" aria-label="Speed">
+            <button id="slower" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐢</span><span class="lbl">Slower</span></button>
+            <output id="bpm" class="tool speed" aria-live="polite"><span class="num">100</span><span class="lbl">Speed</span></output>
+            <button id="faster" class="btn tool" type="button"><span class="ico" aria-hidden="true">🐇</span><span class="lbl">Faster</span></button>
+          </div>
+          <div class="tool-group" role="group" aria-label="Beat">
+            <button id="surprise" class="btn tool" type="button"><span class="ico" aria-hidden="true">🎲</span><span class="lbl">Surprise</span></button>
+            <button id="clear" class="btn tool" type="button"><span class="ico" aria-hidden="true">🧽</span><span class="lbl">Clear</span></button>
+            <button id="undo" class="btn tool" type="button"><span class="ico" aria-hidden="true">↩</span><span class="lbl">Undo</span></button>
+            <button id="double" class="btn tool" type="button"><span class="ico" aria-hidden="true">×2</span><span class="lbl">Double</span></button>
+            <button id="copy" class="btn tool" type="button" aria-haspopup="dialog"><span class="ico" aria-hidden="true">📋</span><span class="lbl">Copy</span></button>
+            <button id="shorter" class="btn tool" type="button"><span class="ico" aria-hidden="true">✂️</span><span class="lbl">Shorter</span></button>
+            <button id="longer-tool" class="btn tool rail-only" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
+          </div>
           <button id="last-video" class="btn tool" type="button" hidden><span class="ico" aria-hidden="true">🎬</span><span class="lbl">My video</span></button>
         </div>
         <button id="more" class="btn tool more" type="button" aria-expanded="false" aria-controls="tools"><span class="ico" aria-hidden="true">⋯</span><span class="lbl">More</span></button>
@@ -100,6 +119,22 @@
       <button id="watch-save" class="btn btn-video btn-big" type="button"><span class="ico" aria-hidden="true">💾</span><span class="lbl">Save</span></button>
     </div>
   </section>
+
+  <!-- 📋 Copy: a whole beat to another number, or one sound's row onto another sound. -->
+  <div id="copy-sheet" class="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="copy-title">
+      <div class="sheet-head">
+        <h2 id="copy-title">Copy</h2>
+        <button id="copy-close" class="btn tool" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+      </div>
+      <h3 class="sheet-sub">Copy this beat to</h3>
+      <div id="copy-slots" class="copy-slots"></div>
+      <h3 id="copy-row-title" class="sheet-sub">Copy a sound</h3>
+      <div id="copy-sounds" class="copy-sounds" role="group" aria-labelledby="copy-row-title"></div>
+    </div>
+  </div>
+
+  <p id="sr-status" class="sr-only" aria-live="polite"></p>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden>
     <span id="toast-msg"></span>

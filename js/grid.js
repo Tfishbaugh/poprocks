@@ -1,8 +1,8 @@
-// The beat grid: one sound button and 16 pads per sound.
-// Wide screens put sounds in rows; narrow or portrait screens turn it (CSS sets --turned).
+// The beat grid: one sound button and 16 to 64 pads per sound, in one long strip.
+// Wide screens put sounds in rows; upright screens turn it (CSS sets --turned).
 
 import { SOUNDS } from './sounds.js';
-import { STEPS, isOn } from './pattern.js';
+import { BAR, isOn, stepCount } from './pattern.js';
 
 const MOVES = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] };
 
@@ -34,6 +34,7 @@ function soundButton(sound, track) {
 
 function pad(sound, track, step) {
   const button = el('button', step % 8 < 4 ? 'pad' : 'pad alt');
+  button.classList.toggle('bar-start', step > 0 && step % BAR === 0);
   button.type = 'button';
   button.dataset.track = track;
   button.dataset.step = step;
@@ -44,8 +45,8 @@ function pad(sound, track, step) {
   return button;
 }
 
-function trackPads(sound, track) {
-  return Array.from({ length: STEPS }, (_, step) => pad(sound, track, step));
+function trackPads(sound, track, steps) {
+  return Array.from({ length: steps }, (_, step) => pad(sound, track, step));
 }
 
 function gridChildren(pads) {
@@ -57,14 +58,24 @@ function clamp(value, max) {
 }
 
 export function createGrid(root, { onToggle, onSound }) {
-  const pads = SOUNDS.map((sound, track) => trackPads(sound, track));
-  root.replaceChildren(...gridChildren(pads));
+  let pads = [];
+  let length = 0;
   let nowStep = -1;
+
+  // A new length means new pads; CSS sizes the strip from --steps and --pages.
+  function build(steps) {
+    pads = SOUNDS.map((sound, track) => trackPads(sound, track, steps));
+    root.replaceChildren(...gridChildren(pads));
+    root.style.setProperty('--steps', steps);
+    root.style.setProperty('--pages', steps / BAR);
+    length = steps;
+    nowStep = -1;
+  }
 
   const turned = () => getComputedStyle(root).getPropertyValue('--turned').trim() === '1';
 
   function focusPad(track, step) {
-    const target = pads[clamp(track, pads.length - 1)][clamp(step, STEPS - 1)];
+    const target = pads[clamp(track, pads.length - 1)][clamp(step, length - 1)];
     root.querySelector('.pad[tabindex="0"]').tabIndex = -1;
     target.tabIndex = 0;
     target.focus({ preventScroll: true });
@@ -96,7 +107,7 @@ export function createGrid(root, { onToggle, onSound }) {
   }
 
   function markStep(step, on) {
-    if (step < 0) return;
+    if (step < 0 || step >= length) return;
     pads.forEach((row) => row[step].classList.toggle('now', on));
   }
 
@@ -105,6 +116,7 @@ export function createGrid(root, { onToggle, onSound }) {
 
   return {
     render(beat) {
+      if (stepCount(beat) !== length) build(stepCount(beat));
       pads.forEach((_, track) => renderTrack(beat, track));
     },
     setNow(step) {
@@ -114,7 +126,7 @@ export function createGrid(root, { onToggle, onSound }) {
     },
     turned,
     stepPad(step) {
-      return pads[0][step];
+      return pads[0][Math.min(step, length - 1)];
     },
   };
 }

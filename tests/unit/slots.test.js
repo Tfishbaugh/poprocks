@@ -84,3 +84,19 @@ test('storage that throws (private mode, blocked) never breaks the app', () => {
   assert.deepEqual(loadState(null), defaultState());
   assert.equal(saveState(null, defaultState()), false);
 });
+
+test('a 64-step beat with a kit saves and loads', () => {
+  const storage = memoryStorage();
+  const state = defaultState();
+  state.slots[2] = { bpm: 140, rows: emptyBeat(140, 64).rows.map((r, i) => (i === 0 ? 'x'.repeat(64) : r)), kit: 'rock' };
+  saveState(storage, state);
+  assert.deepEqual(loadState(storage).slots[2], state.slots[2]);
+});
+
+test('a saved beat with a broken length falls back for that slot only', () => {
+  const state = defaultState();
+  const raw = JSON.stringify({ ...state, slots: [state.slots[0], { bpm: 100, rows: emptyBeat(100, 20).rows }, state.slots[2], state.slots[3]] });
+  const loaded = loadState(memoryStorage({ [STORAGE_KEY]: raw }));
+  assert.deepEqual(loaded.slots[1], emptyBeat());
+  assert.deepEqual(loaded.slots[0], state.slots[0]);
+});

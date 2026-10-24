@@ -40,6 +40,7 @@ const TEXT = [
 const SHAPES = [
   ...TRACKS.flatMap((c) => [[c, 'pad-off'], [c, 'pad-alt'], [c, 'pad-now'], [c, 'bg'], [c, 'surface']]),
   ['muted', 'pad-off'], ['muted', 'pad-alt'], ['muted', 'pad-now'],
+  ['text', 'pad-off'], ['brand', 'pad-off'],
   ['focus', 'bg'], ['focus', 'surface'], ['stage-focus', 'stage'], ['stage-focus', 'chip'],
   ['play', 'bg'], ['video', 'bg'], ['stage-video', 'stage'], ['rec', 'stage'], ['text', 'bg'],
 ];
