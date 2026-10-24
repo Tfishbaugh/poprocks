@@ -71,7 +71,7 @@ test('extra fields in storage are dropped', () => {
   const state = defaultState();
   state.slots[0] = { ...state.slots[0], evil: '<script>' };
   const loaded = loadState(memoryStorage({ [STORAGE_KEY]: JSON.stringify(state) }));
-  assert.deepEqual(Object.keys(loaded.slots[0]).sort(), ['bpm', 'rows']);
+  assert.deepEqual(Object.keys(loaded.slots[0]).sort(), ['bpm', 'kit', 'rows']);
 });
 
 test('storage that throws (private mode, blocked) never breaks the app', () => {
