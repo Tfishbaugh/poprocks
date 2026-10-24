@@ -101,3 +101,17 @@ test('a browser that cannot record says so without asking for the camera', async
   await expect(page.locator('#rec-msg')).toContainText('Beats still do');
   await expect(page.locator('#rec-btn')).toBeDisabled();
 });
+
+test('on a phone, More shows a dot while a video waits under it', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await startApp(page);
+  await expect(page.locator('#more')).not.toHaveClass(/has-video/);
+  await openCamera(page);
+  await record(page, 1);
+  await page.click('#watch-back');
+  await expect(page.locator('#more')).toHaveClass(/has-video/);
+  await page.click('#more');
+  await page.click('#last-video');
+  await page.click('#watch-delete');
+  await expect(page.locator('#more')).not.toHaveClass(/has-video/);
+});

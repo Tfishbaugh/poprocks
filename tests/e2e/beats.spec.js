@@ -80,6 +80,19 @@ test('🎲 gives a new beat, 🧽 clears, ↩ brings it all back', async ({ page
   await expect(page.locator('#undo')).toBeDisabled();
 });
 
+test('the Clear toast has its own Undo, for phones where ↩ is under More', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await startApp(page);
+  const before = await litCount(page);
+  await page.click('#more');
+  await page.click('#clear');
+  expect(await litCount(page)).toBe(0);
+  await page.click('#more');
+  await page.click('#toast-action');
+  expect(await litCount(page)).toBe(before);
+  await expect(page.locator('#toast')).toBeHidden();
+});
+
 test('each kid has a beat slot, and beats are still there after a reload', async ({ page }) => {
   await startApp(page);
   await page.click('.slot[data-slot="2"]');

@@ -129,10 +129,14 @@ function changeTempo(delta) {
   if (next.bpm !== beat().bpm) commit(next);
 }
 
+function undo() {
+  setBeat(history().undo(beat()));
+}
+
 function onClear() {
   if (isEmpty(beat())) return;
   commit(clear(beat()));
-  toast('Cleared. Tap Undo to bring it back.');
+  toast('Beat cleared.', { action: 'Undo', ms: 6000, onAction: undo });
 }
 
 function onSlot(event) {
@@ -194,7 +198,7 @@ function startPlaying() {
   scheduler.setBpm(beat().bpm);
   scheduler.start();
   frame = requestAnimationFrame(draw);
-  setButton('play', '⏹', 'Stop');
+  setButton('play', '■', 'Stop');
   $('play').classList.add('playing');
 }
 
@@ -204,7 +208,7 @@ function stopPlaying() {
   queue.length = 0;
   cancelAnimationFrame(frame);
   grid.setNow(-1);
-  setButton('play', '▶', 'Play');
+  setButton('play', '▶\uFE0E', 'Play');
   $('play').classList.remove('playing');
 }
 
@@ -343,7 +347,7 @@ function onRecorded(blob) {
   forget(lastVideo);
   forgetDeleted();
   lastVideo = { blob, url: URL.createObjectURL(blob), format };
-  $('last-video').hidden = false;
+  setHasVideo(true);
   showWatch();
 }
 
@@ -374,6 +378,12 @@ function forgetDeleted() {
   deleted = null;
 }
 
+// On phones 🎬 My video sits under More, so More gets a dot while a video waits there.
+function setHasVideo(on) {
+  $('last-video').hidden = !on;
+  $('more').classList.toggle('has-video', on);
+}
+
 function showWatch() {
   $('playback').src = lastVideo.url;
   $('watch-note').textContent = lastVideo.format.note;
@@ -392,7 +402,7 @@ function onDelete() {
   lastVideo = null;
   $('playback').removeAttribute('src');
   $('playback').load();
-  $('last-video').hidden = true;
+  setHasVideo(false);
   backToBeats();
   toast('Video deleted.', { action: 'Undo', ms: 10_000, onAction: undoDelete, onEnd: forgetDeleted });
 }
@@ -400,7 +410,7 @@ function onDelete() {
 function undoDelete() {
   lastVideo = deleted;
   deleted = null;
-  $('last-video').hidden = false;
+  setHasVideo(true);
   showWatch();
 }
 
@@ -438,7 +448,7 @@ const CLICKS = {
   faster: () => changeTempo(BPM_STEP),
   surprise: () => commit(surprise(beat())),
   clear: onClear,
-  undo: () => setBeat(history().undo(beat())),
+  undo,
   more: onMore,
   'last-video': () => showWatch(),
   'make-video': onMakeVideo,
