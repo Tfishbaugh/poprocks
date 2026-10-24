@@ -13,8 +13,8 @@ export const TOURS = {
     { name: 'play', find: '#play', pic: '▶️', text: 'Tap Play to hear it' },
     { name: 'video', find: '#make-video', pic: '🎥', text: 'Film a music video' },
     { name: 'slots', find: '#slots', pic: '1️⃣2️⃣3️⃣4️⃣', text: 'Keep 4 beats. Pick a number!' },
-    { name: 'sounds', find: '#sounds, [data-tour="sounds"]', pic: '🎉🎸💖', text: 'Pick new sounds' },
-    { name: 'longer', find: '#longer, [data-tour="longer"]', pic: '➕', text: 'Make it longer' },
+    { name: 'sounds', find: '#sounds, [data-tour="sounds"]', folded: '#sounds-tool', pic: '🎉🎸💖', text: 'Pick new sounds' },
+    { name: 'longer', find: '#longer, [data-tour="longer"]', folded: '#longer-tool', pic: '➕', text: 'Make it longer' },
   ],
   watch: [
     { name: 'effects', find: '#watch-fx, [data-tour="effects"]', pic: '🪄', text: 'Add magic effects' },
@@ -113,7 +113,17 @@ function build() {
 }
 
 const isShown = (node) => node.getClientRects().length > 0;
-const findTarget = (step) => [...document.querySelectorAll(step.find)].find(isShown) ?? null;
+
+// On a phone on its side some controls fold under More; their step points at More instead.
+// A folded control keeps its own display while the closed tray hides it.
+function foldedUnderMore(step) {
+  const control = step.folded && document.querySelector(step.folded);
+  const more = document.getElementById('more');
+  if (!control || !more || !isShown(more)) return null;
+  return getComputedStyle(control).display === 'none' ? null : more;
+}
+
+const findTarget = (step) => [...document.querySelectorAll(step.find)].find(isShown) ?? foldedUnderMore(step);
 const isOpen = () => Boolean(ui && !ui.root.hidden);
 
 function inflate(rect) {
@@ -155,6 +165,7 @@ function render() {
   if (!target) return advance();
   target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   fillCard(steps[index]);
+  if (target.id === 'more') ui.text.textContent += ': tap More';
   const box = inflate(target.getBoundingClientRect());
   const view = { width: ui.root.clientWidth, height: ui.root.clientHeight };
   const at = placeCard(box, { width: ui.card.offsetWidth, height: ui.card.offsetHeight }, view);

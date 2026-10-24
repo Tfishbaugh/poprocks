@@ -48,7 +48,8 @@ function boxes(page) {
   return page.evaluate((tours) => {
     const name = document.querySelector('.tour').dataset.step;
     const { find } = Object.values(tours).flat().find((step) => step.name === name);
-    const target = [...document.querySelectorAll(find)].find((node) => node.getClientRects().length);
+    const shown = [...document.querySelectorAll(find)].find((node) => node.getClientRects().length);
+    const target = shown ?? document.getElementById('more'); // folded under More on a phone on its side
     const rect = (node) => node.getBoundingClientRect().toJSON();
     const scroll = document.documentElement.scrollWidth > innerWidth;
     return { name, scroll, target: rect(target), card: rect(document.querySelector('.tour-card')), next: rect(document.querySelector('.tour-next')) };
@@ -234,9 +235,8 @@ for (const view of SIZES) {
       seen.push(await expectCardClear(page, view));
       await page.click('.tour-next');
     }
-    // On a phone on its side, Sounds (like ➕) waits under More, so its step is skipped there.
-    const side = view.height <= 520 && view.width > view.height;
-    expect(seen).toEqual(expect.arrayContaining(['pads', 'play', 'video', 'slots', ...(side ? [] : ['sounds'])]));
+    // On a phone on its side, Sounds and ➕ wait under More, and their steps point at More.
+    expect(seen).toEqual(expect.arrayContaining(['pads', 'play', 'video', 'slots', 'sounds', 'longer']));
 
     await openCamera(page);
     await record(page, 1);
@@ -247,3 +247,20 @@ for (const view of SIZES) {
     expect(seen).toEqual(expect.arrayContaining(['effects', 'save']));
   });
 }
+
+test('on a phone on its side, Sounds and ➕ point at More, where they are folded', async ({ page }) => {
+  await page.setViewportSize({ width: 852, height: 393 });
+  await start(page);
+  for (let i = 0; i < 4; i += 1) await page.click('.tour-next');
+  expect(await stepName(page)).toBe('sounds');
+  await expect(page.locator('.tour-text')).toHaveText('Pick new sounds: tap More');
+  const more = await page.locator('#more').boundingBox();
+  const ringsMore = async () => {
+    const spot = await page.locator('.tour-spot').boundingBox();
+    return spot.x <= more.x && spot.x + spot.width >= more.x + more.width;
+  };
+  await expect.poll(ringsMore, { message: 'the lit ring sits around More' }).toBe(true);
+  await page.click('.tour-next');
+  expect(await stepName(page)).toBe('longer');
+  await expect(page.locator('.tour-text')).toHaveText('Make it longer: tap More');
+});
