@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 import { existsSync } from 'node:fs';
+import { tourSeen } from './tests/e2e/seen.js';
 
 // The system Chromium has the H.264 encoder, so it records MP4 like Chrome does.
 // Without it, Playwright's own Chromium records WebM.
@@ -14,6 +15,8 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}/poprocks/`,
     permissions: ['camera', 'microphone'],
+    // Most tests start past the how-to tour; tests/e2e/tour.spec.js starts without this.
+    storageState: tourSeen(`http://127.0.0.1:${PORT}`),
     launchOptions: {
       executablePath: existsSync(SYSTEM_CHROMIUM) ? SYSTEM_CHROMIUM : undefined,
       args: [

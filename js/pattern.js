@@ -1,13 +1,19 @@
-// A beat is { bpm, rows }: one 16-character string per sound, 'x' on and '.' off.
+// A beat is { bpm, rows, kit }:
+// - rows: one string per sound, 'x' on and '.' off, all the same length: 16, 32, 48 or 64 steps;
+// - kit: the sound kit's id (sounds.js owns the kits), 'party' when unset.
 
 export const TRACKS = 8;
-export const STEPS = 16;
+export const BAR = 16;
+export const STEPS = BAR; // a starter beat's length, and how much ➕ and ✂️ add or take away
+export const MAX_STEPS = 64;
+export const DEFAULT_KIT = 'party';
 export const BPM_MIN = 60;
 export const BPM_MAX = 180;
 export const BPM_STEP = 10;
 export const BPM_DEFAULT = 100;
 
-const ROW = new RegExp(`^[x.]{${STEPS}}$`);
+const ROW = /^[x.]+$/;
+const KIT = /^[a-z0-9-]{1,24}$/;
 const HISTORY_MAX = 50;
 
 // Track order: kick, snare, clap, hi-hat, cowbell, bass, laser, boing.
@@ -35,12 +41,16 @@ export const STARTERS = [
     '................', 'x..x..x...x..x..', '................', 'x.......x.......'] },
 ];
 
-export function emptyBeat(bpm = BPM_DEFAULT) {
-  return { bpm, rows: Array.from({ length: TRACKS }, () => '.'.repeat(STEPS)) };
+export function emptyBeat(bpm = BPM_DEFAULT, steps = BAR, kit = DEFAULT_KIT) {
+  return { bpm, rows: Array.from({ length: TRACKS }, () => '.'.repeat(steps)), kit };
 }
 
 export function copyBeat(beat) {
-  return { bpm: beat.bpm, rows: [...beat.rows] };
+  return { bpm: beat.bpm, rows: [...beat.rows], kit: beat.kit ?? DEFAULT_KIT };
+}
+
+export function stepCount(beat) {
+  return beat.rows[0].length;
 }
 
 export function isOn(beat, track, step) {
@@ -61,7 +71,41 @@ export function toggle(beat, track, step) {
 }
 
 export function clear(beat) {
-  return emptyBeat(beat.bpm);
+  return emptyBeat(beat.bpm, stepCount(beat), beat.kit);
+}
+
+export function withKit(beat, kit) {
+  return { ...beat, kit };
+}
+
+const mapRows = (beat, change) => ({ ...beat, rows: beat.rows.map(change) });
+
+// ➕ Make it longer: 16 more steps, a copy of the last 16, so a kid can add on and change it.
+export function longer(beat) {
+  if (stepCount(beat) >= MAX_STEPS) return beat;
+  return mapRows(beat, (row) => row + row.slice(-BAR));
+}
+
+// ✂️ Shorter: takes the last 16 steps away.
+export function shorter(beat) {
+  if (stepCount(beat) <= BAR) return beat;
+  return mapRows(beat, (row) => row.slice(0, -BAR));
+}
+
+const firstHalf = (row) => row.slice(0, row.length / 2);
+
+// ×2 Double: the first half of the beat, played again as the second half.
+export function canDouble(beat) {
+  return beat.rows.some((row) => firstHalf(row).includes('x'));
+}
+
+export function double(beat) {
+  return mapRows(beat, (row) => firstHalf(row).repeat(2));
+}
+
+// Copies one sound's row onto another sound.
+export function copyRow(beat, from, to) {
+  return mapRows(beat, (row, track) => (track === to ? beat.rows[from] : row));
 }
 
 export function clampBpm(bpm) {
@@ -72,25 +116,38 @@ export function withBpm(beat, bpm) {
   return { ...beat, bpm: clampBpm(bpm) };
 }
 
-function isValidRow(row) {
-  return typeof row === 'string' && ROW.test(row);
+function isValidLength(steps) {
+  return steps % BAR === 0 && steps >= BAR && steps <= MAX_STEPS;
+}
+
+function isValidRow(row, steps) {
+  return typeof row === 'string' && row.length === steps && ROW.test(row);
 }
 
 export function isValidBeat(value) {
   if (!value || typeof value !== 'object') return false;
   if (!Number.isFinite(value.bpm) || value.bpm < BPM_MIN || value.bpm > BPM_MAX) return false;
+  if (value.kit !== undefined && !KIT.test(value.kit)) return false;
   if (!Array.isArray(value.rows) || value.rows.length !== TRACKS) return false;
-  return value.rows.every(isValidRow);
+  const steps = value.rows[0]?.length;
+  return isValidLength(steps) && value.rows.every((row) => isValidRow(row, steps));
 }
 
 function sameRows(a, b) {
   return a.rows.every((row, i) => row === b.rows[i]);
 }
 
-// A random starter beat that differs from the one on screen.
-export function surprise(current, random = Math.random) {
-  const choices = STARTERS.filter((starter) => !sameRows(starter, current));
-  return copyBeat(choices[Math.floor(random() * choices.length)]);
+// A starter, repeated to fill the beat's length.
+function fitted(starter, current) {
+  const times = stepCount(current) / BAR;
+  return { bpm: starter.bpm, rows: starter.rows.map((row) => row.repeat(times)), kit: current.kit ?? DEFAULT_KIT };
+}
+
+// A random starter beat that differs from the one on screen. It keeps the beat's length and kit.
+// Each kit can bring its own starters (rows keep their job, but row 4 is a crash in Rock).
+export function surprise(current, random = Math.random, starters = STARTERS) {
+  const choices = starters.map((starter) => fitted(starter, current)).filter((beat) => !sameRows(beat, current));
+  return choices[Math.floor(random() * choices.length)];
 }
 
 export function createHistory(limit = HISTORY_MAX) {

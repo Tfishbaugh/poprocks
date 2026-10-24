@@ -14,6 +14,7 @@ export function createScheduler({ now, onStep, steps = 16, bpm = 100, timers = g
   let anchorTime = 0;
   let anchorCount = 0;
   let count = 0;
+  let step = 0;
 
   const timeOf = (n) => anchorTime + (n - anchorCount) * stepDuration(bpm);
 
@@ -27,7 +28,8 @@ export function createScheduler({ now, onStep, steps = 16, bpm = 100, timers = g
     // After a stall (a busy or hidden tab) restart from now instead of playing a burst.
     if (timeOf(count) < at) anchor(at + START_DELAY);
     while (timeOf(count) < at + LOOKAHEAD) {
-      onStep(count % steps, timeOf(count));
+      onStep(step, timeOf(count));
+      step = (step + 1) % steps;
       count += 1;
     }
   }
@@ -36,6 +38,7 @@ export function createScheduler({ now, onStep, steps = 16, bpm = 100, timers = g
     start() {
       if (timer !== null) return;
       count = 0;
+      step = 0;
       anchor(now() + START_DELAY);
       tick();
       timer = timers.setInterval(tick, INTERVAL_MS);
@@ -49,6 +52,11 @@ export function createScheduler({ now, onStep, steps = 16, bpm = 100, timers = g
     setBpm(next) {
       if (timer !== null) anchor(timeOf(count));
       bpm = next;
+    },
+    // A longer or shorter beat carries on from the next step, wrapping if it got shorter.
+    setSteps(next) {
+      steps = next;
+      step %= steps;
     },
     tick,
     get playing() {
