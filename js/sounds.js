@@ -126,6 +126,31 @@ export function chordNote(step, index, low) {
 const pitch = (octave, semis) => E1 * 2 ** (octave - 1 + semis / 12);
 const rate = (semis) => 2 ** (semis / 12);
 
+// ---- Held notes (task 84) ----
+
+// A held note fades out over FADE when it ends. Held notes play again at every chord change
+// (8 steps), so none rings past 2 s even at 60 BPM: CAP ends one anyway if the scheduler stalls.
+export const FADE = 0.08;
+export const CAP = 3;
+// How loud a held note rings on, against its first hit. Chug's fuzz is a full-scale square wave,
+// so it rings much lower to sit with the others (tests/e2e/holds.spec.js checks the balance).
+const SUSTAIN = 0.15;
+const SUSTAINS = new Map([['chug', 0.03]]);
+
+function fadeOut(param, time) {
+  param.setValueAtTime(1, time);
+  param.linearRampToValueAtTime(0, time + FADE);
+}
+
+// Older Safari throws on a second stop(); the first one stands then.
+function stopAt(source, time) {
+  try {
+    source.stop(time);
+  } catch {
+    // Already stopping by itself at the cap.
+  }
+}
+
 // ---- Building blocks ----
 
 // The bass follows a little riff, so any pattern sounds like a tune (semitones above A1).
@@ -135,9 +160,15 @@ const A1 = 55;
 function envelope(v, time, peak, decay) {
   const gain = v.ctx.createGain();
   gain.gain.setValueAtTime(peak, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+  fall(v, gain.gain, peak, time, decay);
   gain.connect(v.out);
   return gain;
+}
+
+// A short note dies away. A held one settles to a steady level, and the engine's gate ends it.
+function fall(v, param, peak, time, decay) {
+  if (v.sustain) return param.setTargetAtTime(peak * v.sustain, time, decay / 3);
+  param.exponentialRampToValueAtTime(0.001, time + decay);
 }
 
 function filter(v, type, frequency, dest, q = 1) {
@@ -160,7 +191,8 @@ function tone(v, type, frequency, time, length, dest) {
   osc.frequency.setValueAtTime(frequency, time);
   osc.connect(dest);
   osc.start(time);
-  osc.stop(time + length);
+  osc.stop(time + (v.cap ?? length));
+  v.sources?.push(osc);
   return osc;
 }
 
@@ -197,6 +229,8 @@ function sample(v, name, time, semis = 0) {
   src.playbackRate.value = rate(semis);
   src.connect(choke(v, name, time));
   src.start(time, loaded.offset);
+  v.sources?.push(src);
+  if (v.cap) src.stop(time + v.cap);
 }
 
 // ---- Party ----
@@ -446,10 +480,10 @@ export function createEngine(ctx = newContext()) {
   let demo = null;
   let loading = null;
 
-  function hit(id, time, step, dest) {
+  function hit(id, time, step, dest, held = {}) {
     const trim = setParams(ctx.createGain(), { gain: GAINS.get(id) });
     trim.connect(dest);
-    VOICES[id]({ ...v, out: trim }, Math.max(time, ctx.currentTime), step);
+    VOICES[id]({ ...v, ...held, out: trim }, Math.max(time, ctx.currentTime), step);
   }
 
   function fetchSamples() {
@@ -463,6 +497,25 @@ export function createEngine(ctx = newContext()) {
     output: bus.output,
     play(id, time = ctx.currentTime, step = 0) {
       hit(id, time, step, bus.input);
+    },
+    // A held note (task 84): it rings until release(time) fades it out on the audio clock,
+    // or until CAP if that never comes.
+    hold(id, time = ctx.currentTime, step = 0) {
+      const start = Math.max(time, ctx.currentTime);
+      const gate = ctx.createGain();
+      const sources = [];
+      gate.connect(bus.input);
+      fadeOut(gate.gain, start + CAP);
+      hit(id, start, step, gate, { sustain: SUSTAINS.get(id) ?? SUSTAIN, cap: CAP + FADE, sources });
+      return {
+        release(off) {
+          const end = Math.max(off, ctx.currentTime);
+          if (end >= start + CAP) return;
+          gate.gain.cancelScheduledValues(end);
+          fadeOut(gate.gain, end);
+          sources.forEach((source) => stopAt(source, end + FADE));
+        },
+      };
     },
     // A short groove in a kit's sounds. Starting another fades this one out.
     preview(kitId) {

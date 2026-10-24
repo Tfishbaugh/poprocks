@@ -5,7 +5,7 @@ import { KITS, createEngine } from '../../js/sounds.js';
 
 const RATE = 44100;
 
-async function render(play, seconds = 1.5) {
+export async function render(play, seconds = 1.5) {
   const ctx = new OfflineAudioContext(1, Math.round(RATE * seconds), RATE);
   const engine = createEngine(ctx);
   await engine.load();

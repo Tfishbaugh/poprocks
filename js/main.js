@@ -17,6 +17,7 @@ import {
 import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
+import { createHoldPlayer } from './holds.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -44,6 +45,7 @@ const queue = [];
 let screen = 'start';
 let engine = null;
 let scheduler = null;
+let holdPlayer = null;
 let frame = 0;
 let lastTouch = 0;
 let camera = null;
@@ -319,10 +321,9 @@ function onCopySheet(open) {
 
 // ---- Playing ----
 
+// Held notes ring or roll, and end on the audio clock (task 84: js/holds.js).
 function onStep(step, time) {
-  SOUNDS.forEach((sound, track) => {
-    if (isOn(beat(), track, step)) engine.play(sound.id, time, step);
-  });
+  SOUNDS.forEach((sound, track) => holdPlayer.step(beat().rows[track], track, sound.id, step, time));
   queue.push({ step, time });
 }
 
@@ -387,6 +388,7 @@ function startPlaying() {
 function stopPlaying() {
   if (!scheduler?.playing) return;
   scheduler.stop();
+  holdPlayer.releaseAll(engine.ctx.currentTime);
   queue.length = 0;
   cancelAnimationFrame(frame);
   grid.setNow(-1);
@@ -403,6 +405,7 @@ function togglePlay() {
 function onStart() {
   if (!audioSupported()) return showStartNote('This browser can’t play sounds. Try Safari or Chrome.');
   engine ??= createEngine();
+  holdPlayer ??= createHoldPlayer(engine);
   engine.load();
   scheduler ??= createScheduler({ now: () => engine.ctx.currentTime, onStep, bpm: beat().bpm });
   setAudioSession('playback');

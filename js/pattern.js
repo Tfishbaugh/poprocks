@@ -1,6 +1,9 @@
 // A beat is { bpm, rows, kit }:
 // - rows: one string per sound, 'x' on and '.' off, all the same length: 16, 32, 48 or 64 steps;
+//   '-' holds the note before it, so 'x---' is a 4-step note (js/holds.js);
 // - kit: the sound kit's id (sounds.js owns the kits), 'party' when unset.
+
+import { removeNote, tidyRow } from './holds.js';
 
 export const TRACKS = 8;
 export const BAR = 16;
@@ -11,7 +14,7 @@ export const BPM_MAX = 180;
 export const BPM_STEP = 10;
 export const BPM_DEFAULT = 100;
 
-const ROW = /^[x.]+$/;
+const ROW = /^[x.-]+$/;
 const KIT = /^[a-z0-9-]{1,24}$/;
 const HISTORY_MAX = 50;
 
@@ -45,24 +48,26 @@ export function emptyBeat(bpm = BPM_DEFAULT, steps = BAR, kit = DEFAULT_KIT) {
 }
 
 export function copyBeat(beat) {
-  return { bpm: beat.bpm, rows: [...beat.rows], kit: beat.kit ?? DEFAULT_KIT };
+  return { bpm: beat.bpm, rows: beat.rows.map(tidyRow), kit: beat.kit ?? DEFAULT_KIT };
 }
 
 export function stepCount(beat) {
   return beat.rows[0].length;
 }
 
+// Lit: a note, or a step that holds one.
 export function isOn(beat, track, step) {
-  return beat.rows[track][step] === 'x';
+  return beat.rows[track][step] !== '.';
 }
 
 export function isEmpty(beat) {
   return beat.rows.every((row) => !row.includes('x'));
 }
 
+// A tap anywhere on a held note's bar takes the whole note away.
 function flip(row, step) {
-  const next = row[step] === 'x' ? '.' : 'x';
-  return row.slice(0, step) + next + row.slice(step + 1);
+  if (row[step] !== '.') return removeNote(row, step);
+  return row.slice(0, step) + 'x' + row.slice(step + 1);
 }
 
 export function toggle(beat, track, step) {
@@ -77,7 +82,8 @@ export function withKit(beat, kit) {
   return { ...beat, kit };
 }
 
-const mapRows = (beat, change) => ({ ...beat, rows: beat.rows.map(change) });
+// ➕ ➖ ×2 and 📋 can leave a '-' cut off from its note; tidying makes it a note of its own.
+const mapRows = (beat, change) => ({ ...beat, rows: beat.rows.map((row, track) => tidyRow(change(row, track))) });
 
 // ➕ Make it longer: 16 more steps, a copy of the last 16, so a kid can add on and change it.
 export function longer(beat) {
