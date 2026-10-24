@@ -2,6 +2,26 @@
 // look on the grid, and the keys and Undo that stretch them.
 
 import { test, expect } from '@playwright/test';
+import { startApp } from './helpers.js';
+
+const pad = (page, track, step) => page.locator(`.pad[data-track="${track}"][data-step="${step}"]`);
+const lit = (page, track) => page.locator(`.pad.on[data-track="${track}"]`).evaluateAll((pads) => pads.map((p) => Number(p.dataset.step)));
+const corners = (locator) => locator.evaluate((node) => {
+  const style = getComputedStyle(node);
+  const px = (name) => parseFloat(style[name]);
+  return {
+    left: px('borderLeftWidth'), right: px('borderRightWidth'), top: px('borderTopWidth'), bottom: px('borderBottomWidth'),
+    tl: px('borderTopLeftRadius'), tr: px('borderTopRightRadius'), bl: px('borderBottomLeftRadius'), br: px('borderBottomRightRadius'),
+  };
+});
+
+// A plain note on the Bass row at step 3, then Shift+→ until it holds `steps` steps.
+async function holdBass(page, steps, start = 2) {
+  await page.click('#clear');
+  await pad(page, 5, start).click();
+  await pad(page, 5, start).focus();
+  for (let i = 1; i < steps; i += 1) await page.keyboard.press('Shift+ArrowRight');
+}
 
 // Calls one of hold-lab.js's functions in the page.
 function lab(page, name, ...args) {
@@ -61,5 +81,100 @@ test.describe('how held notes sound', () => {
     const [peaks, before] = [levels.slice(0, 4).map(([, p]) => p), levels.slice(4).map(([, p]) => p)];
     peaks.forEach((p, n) => expect(p, `step ${n + 1} hits`).toBeGreaterThan(-12));
     before.forEach((p, n) => expect(peaks[n + 1] - p, `step ${n + 2} is a new hit`).toBeGreaterThan(6));
+  });
+});
+
+test.describe('held notes on the grid', () => {
+  test('Shift+→ stretches the focused note into one bar, Shift+← shrinks it, one ↩ a press', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await holdBass(page, 4);
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+    await expect(pad(page, 5, 2)).toBeFocused();
+    await expect(page.locator('#sr-status')).toHaveText('Held for 4 steps.');
+    await expect(pad(page, 5, 2)).toHaveAttribute('aria-label', 'Bass, step 3, held');
+    await expect(pad(page, 5, 4)).toHaveAttribute('aria-label', 'Bass, step 5, held');
+    await expect(pad(page, 5, 4)).toHaveAttribute('aria-pressed', 'true');
+    await expect(pad(page, 5, 6)).toHaveAttribute('aria-label', 'Bass, step 7');
+
+    await page.keyboard.press('Shift+ArrowLeft');
+    expect(await lit(page, 5)).toEqual([2, 3, 4]);
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([2, 3, 4]);
+  });
+
+  test('a note stretches up to the next note and no further, and shrinks to one step', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await holdBass(page, 1);
+    await pad(page, 5, 5).click();
+    await pad(page, 5, 2).focus();
+    for (let i = 0; i < 5; i += 1) await page.keyboard.press('Shift+ArrowRight');
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+    await expect(pad(page, 5, 5)).not.toHaveClass(/join-prev/);
+    for (let i = 0; i < 5; i += 1) await page.keyboard.press('Shift+ArrowLeft');
+    expect(await lit(page, 5)).toEqual([2, 5]);
+    await expect(pad(page, 5, 2)).toHaveAttribute('aria-label', 'Bass, step 3');
+    await expect(page.locator('#sr-status')).toHaveText('Not held.');
+  });
+
+  test('Shift+→ on an empty square starts a 2-step note there', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await page.click('#clear');
+    await pad(page, 1, 7).focus();
+    await page.keyboard.press('Shift+ArrowLeft');
+    expect(await lit(page, 1)).toEqual([]);
+    await page.keyboard.press('Shift+ArrowRight');
+    expect(await lit(page, 1)).toEqual([7, 8]);
+  });
+
+  test('a tap anywhere on a bar takes the whole note away, and ↩ brings it back', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await holdBass(page, 4);
+    await pad(page, 5, 4).click();
+    expect(await lit(page, 5)).toEqual([]);
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+  });
+
+  test('wide: one bar across the row, rounded only at its ends', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await holdBass(page, 3);
+    const [first, middle, last] = await Promise.all([2, 3, 4].map((step) => corners(pad(page, 5, step))));
+    expect(first).toMatchObject({ right: 0, tr: 0, br: 0, left: 3 });
+    expect(first.tl).toBeGreaterThan(8);
+    expect(middle).toMatchObject({ left: 0, right: 0, tl: 0, tr: 0, bl: 0, br: 0, top: 3, bottom: 3 });
+    expect(last).toMatchObject({ left: 0, tl: 0, bl: 0, right: 3 });
+    expect(last.br).toBeGreaterThan(8);
+    const box = (step) => pad(page, 5, step).boundingBox();
+    const [a, b] = await Promise.all([box(2), box(3)]);
+    expect(Math.abs(a.x + a.width - b.x), 'no gap between steps').toBeLessThan(1);
+  });
+
+  test('upright: the bar runs down the row, rounded only at its ends', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startApp(page);
+    await page.click('#more'); // 🧽 Clear is under More on a phone
+    await holdBass(page, 3);
+    const [first, middle, last] = await Promise.all([2, 3, 4].map((step) => corners(pad(page, 5, step))));
+    expect(first).toMatchObject({ bottom: 0, bl: 0, br: 0, left: 3, right: 3 });
+    expect(first.tl).toBeGreaterThan(8);
+    expect(middle).toMatchObject({ top: 0, bottom: 0, tl: 0, tr: 0, bl: 0, br: 0 });
+    expect(last).toMatchObject({ top: 0, tl: 0, tr: 0 });
+    expect(last.bl).toBeGreaterThan(8);
+  });
+
+  test('a bar crossing a bar line joins over the divider', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await startApp(page);
+    await page.click('#longer');
+    await holdBass(page, 4, 14);
+    expect(await lit(page, 5)).toEqual([14, 15, 16, 17]);
+    expect(await corners(pad(page, 5, 16))).toMatchObject({ left: 0, right: 0 });
   });
 });

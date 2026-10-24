@@ -55,6 +55,19 @@ export function removeNote(row, step) {
   return row.slice(0, start) + '.'.repeat(end - start + 1) + row.slice(end + 1);
 }
 
+// ---- On the grid ----
+
+// A held note shows as one bar: each step joins the step before or after it (app.css draws
+// that), and each says so in its name: "Bass, step 5, held".
+export function showHold(pad, row, step) {
+  const joinPrev = row[step] === HOLD;
+  const joinNext = row[step + 1] === HOLD;
+  const name = pad.getAttribute('aria-label').replace(/, held$/, '');
+  pad.classList.toggle('join-prev', joinPrev);
+  pad.classList.toggle('join-next', joinNext);
+  pad.setAttribute('aria-label', joinPrev || joinNext ? `${name}, held` : name);
+}
+
 // ---- Playing ----
 
 const chordChanges = (step) => chordAt(step) !== chordAt(step - 1);

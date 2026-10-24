@@ -309,6 +309,23 @@ button:disabled { cursor: default; opacity: 0.4; }
   }
 }
 
+/* ---- Held notes (task 84): one bar in the row's colour, rounded only at its ends ---- */
+
+/* A step joined to the next drops its border on that side, so the colour runs straight on. */
+@media (orientation: landscape) {
+  .pad.join-next { border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .pad.join-prev { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+}
+
+/* Upright, the bar runs down, and only its last step keeps the shade along its foot. */
+@media (orientation: portrait) {
+  .pad.join-next { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: none; }
+  .pad.join-prev { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+}
+
+/* The playhead brightens a bar without pushing one step out of it. */
+.pad.join-prev.now, .pad.join-next.now { transform: none; }
+
 /* ---- Longer beats: ❮, the map, ❯ and ➕ above the grid (task 80, lane A) ---- */
 
 .strip-nav {

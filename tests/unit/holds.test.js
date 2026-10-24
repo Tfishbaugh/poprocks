@@ -3,6 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   RINGS, createHoldPlayer, cue, holdTo, noteEnd, noteStart, removeNote, stretchLimit, tidy, tidyRow,
 } from '../../js/holds.js';
@@ -258,4 +259,27 @@ test('a row switched to a drum mid-note ends the held note', () => {
 
 test('the cap outlasts the longest ring: 8 steps at the slowest tempo', () => {
   assert.ok(CAP > 8 * stepDuration(60));
+});
+
+// ---- The look ----
+
+const hexes = (block) => Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)].map((m) => [m[1], m[2]]));
+const channel = (hex, i) => {
+  const c = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const luminance = (hex) => 0.2126 * channel(hex, 0) + 0.7152 * channel(hex, 1) + 0.0722 * channel(hex, 2);
+const ratio = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+test('in dark mode a held bar stands out 4.5:1 from the empty squares around it, in every row’s colour', () => {
+  const css = readFileSync(new URL('../../app.css', import.meta.url), 'utf8');
+  const dark = { ...hexes(css.match(/^:root\s*{([^}]*)}/m)[1]), ...hexes(css.match(/@media \(prefers-color-scheme: dark\)\s*{\s*:root\s*{([^}]*)}/)[1]) };
+  const rows = Object.keys(dark).filter((name) => /^c\d+$/.test(name));
+  assert.ok(rows.length >= 8);
+  rows.forEach((c) => ['pad-off', 'pad-alt'].forEach((bg) => {
+    assert.ok(ratio(dark[c], dark[bg]) >= 4.5, `--${c} on --${bg}: ${ratio(dark[c], dark[bg]).toFixed(2)}:1`);
+  }));
 });

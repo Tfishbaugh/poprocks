@@ -18,6 +18,7 @@ import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
 import { createHoldPlayer } from './holds.js';
+import { createStretch } from './stretch.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -680,6 +681,14 @@ function wakeAudio() {
 }
 
 const grid = createGrid($('grid'), { onToggle, onSound });
+// Held notes (task 84): Shift+→ and Shift+← stretch the focused note, one ↩ a press.
+createStretch({
+  root: $('grid'),
+  turned: () => grid.turned(),
+  beat,
+  commit,
+  announce: (text) => { $('sr-status').textContent = text; },
+});
 const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
 const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });
 const strip = createStrip({
