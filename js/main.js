@@ -12,6 +12,7 @@ import {
   MAX_SECONDS, NO_VIDEO_NOTE, cameraError, canRecord, createMix, openCamera, pickFormat, startRecorder, stopStream,
 } from './recorder.js';
 import { fileName, saveVideo } from './save.js';
+import { initTour, startTour, tourOnce } from './tour.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -351,6 +352,7 @@ function onStart() {
   setAudioSession('playback');
   engine.resume();
   show('beats');
+  tourOnce('beats');
 }
 
 function showStartNote(text) {
@@ -536,6 +538,7 @@ function showWatch() {
   $('watch-note').textContent = lastVideo.format.note;
   $('watch-note').hidden = !lastVideo.format.note;
   show('watch');
+  tourOnce('watch');
 }
 
 function backToBeats(message) {
@@ -631,6 +634,7 @@ const CLICKS = {
   undo,
   more: () => setMore(!isMoreOpen()),
   'last-video': () => showWatch(),
+  help: () => { setMore(false); startTour('beats'); },
   'make-video': onMakeVideo,
   'rec-close': onRecordClose,
   'rec-retry': () => openRecordCamera(),
@@ -649,6 +653,7 @@ const CLICKS = {
   'copy-close': () => copySheet.close(),
 };
 
+initTour(storage); // before the popstate and keydown listeners below, so the tour hears Back and Escape first
 Object.entries(CLICKS).forEach(([id, handler]) => $(id).addEventListener('click', handler));
 $('slots').addEventListener('click', onSlot);
 $('grid-wrap').addEventListener('pointerdown', () => { fingerDown = true; touchGrid(); }, { passive: true });

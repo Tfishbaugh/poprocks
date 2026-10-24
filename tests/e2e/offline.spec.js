@@ -2,11 +2,12 @@
 
 import { test, expect } from '@playwright/test';
 import { serve } from '../../scripts/serve.mjs';
+import { tourSeen } from './seen.js';
 
 test('works offline after the first visit', async ({ browser }) => {
   const server = await serve(0);
   const base = `http://127.0.0.1:${server.address().port}/poprocks/`;
-  const context = await browser.newContext();
+  const context = await browser.newContext({ storageState: tourSeen(new URL(base).origin) });
   const page = await context.newPage();
   await page.goto(base);
   await page.evaluate(() => navigator.serviceWorker.ready);
