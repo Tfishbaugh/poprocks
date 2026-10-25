@@ -2,10 +2,11 @@
 // through the app's real engine (samples, limiter and all) and measures them.
 
 import { KITS, createEngine } from '../../js/sounds.js';
+import { createHoldPlayer } from '../../js/holds.js';
 
 const RATE = 44100;
 
-async function render(play, seconds = 1.5) {
+export async function render(play, seconds = 1.5) {
   const ctx = new OfflineAudioContext(1, Math.round(RATE * seconds), RATE);
   const engine = createEngine(ctx);
   await engine.load();
@@ -58,16 +59,20 @@ export async function loudness(id, step = 0, seconds = 0.4) {
 
 const kitById = (id) => KITS.find((kit) => kit.id === id);
 
-function playRow(engine, row, id, stepTime) {
-  [...row].forEach((cell, step) => { if (cell === 'x') engine.play(id, step * stepTime, step); });
+// Step by step through the hold player, as the app plays a beat: a tuned note lasts its squares,
+// and a drum hits (held notes, task 84).
+function playBeat(engine, rows, ids, stepTime) {
+  const player = createHoldPlayer(engine);
+  const playStep = (step) => rows.forEach((row, track) => player.step(row, track, ids[track], step, step * stepTime));
+  [...rows[0]].forEach((_, step) => playStep(step));
+  player.releaseAll(rows[0].length * stepTime);
 }
 
 // A whole beat (rows as in pattern.js) played once in a kit, or with a sound id per row (a mix).
 function renderBeat(kit, rows, bpm) {
   const ids = Array.isArray(kit) ? kit : kitById(kit).sounds.map((sound) => sound.id);
   const stepTime = 60 / bpm / 4;
-  const play = (engine) => rows.forEach((row, track) => playRow(engine, row, ids[track], stepTime));
-  return render(play, rows[0].length * stepTime + 0.5);
+  return render((engine) => playBeat(engine, rows, ids, stepTime), rows[0].length * stepTime + 0.5);
 }
 
 // Its loudness over the whole beat.

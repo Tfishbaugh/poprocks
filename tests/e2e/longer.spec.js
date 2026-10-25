@@ -127,6 +127,7 @@ test('the playhead follows, but never moves the grid from under a finger', async
   await expect.poll(() => played(page, 30), { timeout: 10_000 }).toBe(true);
   expect(await scrolled(page), 'a finger is on the grid').toBe(0);
   await page.mouse.up();
+  await page.keyboard.press('Escape'); // so long a press is a hold, and it opened the note panel (task 84)
   await page.waitForTimeout(1500);
   expect(await scrolled(page), 'and just after it lifts').toBe(0);
   await page.click('#play');

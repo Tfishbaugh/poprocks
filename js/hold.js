@@ -31,6 +31,7 @@ export function createHold(root, { onHold = () => {}, onMove = () => {}, onLift 
   }
 
   function hold() {
+    clearTimeout(press.timer); // a mouse that drags right away holds early; the timer mustn't hold it again
     press.held = true;
     press.pad.classList.add('held');
     navigator.vibrate?.(15);
@@ -46,7 +47,10 @@ export function createHold(root, { onHold = () => {}, onMove = () => {}, onLift 
 
   function onPointerMove(event) {
     if (event.pointerId !== press?.id) return;
-    if (!press.held && Math.hypot(event.clientX - press.x, event.clientY - press.y) > SLOP) return end();
+    const mouse = event.pointerType === 'mouse';
+    // A mouse doesn't scroll by dragging, so it can drag right away: leaving the square holds it.
+    if (!press.held && mouse && padUnder(event) !== press.pad) hold();
+    if (!press.held && !mouse && Math.hypot(event.clientX - press.x, event.clientY - press.y) > SLOP) return end();
     if (!press.held) return;
     const pad = padUnder(event);
     press.moved ||= pad !== press.pad;

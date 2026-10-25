@@ -6,6 +6,7 @@ import { BAR, isOn, liftAt, stepCount, trackCount } from './pattern.js';
 import { TUNED, soundById } from './sounds.js';
 import { liftMark, liftWords } from './note.js';
 import { el } from './dom.js';
+import { showHold } from './holds.js';
 
 const MOVES = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] };
 // Shift+↑ and Shift+↓ move a note higher or lower, in either orientation (the key slider's keys).
@@ -51,9 +52,9 @@ function trackPads(track, steps) {
   return Array.from({ length: steps }, (_, step) => pad(track, step));
 }
 
-// "Bass, step 5", and ", 2 higher" when the key slider moved it.
-export function padLabel(sound, step, lift) {
-  return `${sound.label}, step ${step + 1}${lift ? `, ${liftWords(lift)}` : ''}`;
+// "Bass, step 5", ", held" on a held note's bar (task 84), and ", 2 higher" when the key slider moved it.
+export function padLabel(sound, step, lift, held = false) {
+  return `${sound.label}, step ${step + 1}${held ? ', held' : ''}${lift ? `, ${liftWords(lift)}` : ''}`;
 }
 
 function clamp(value, max) {
@@ -119,8 +120,9 @@ export function createGrid(root, { onToggle, onSound, onLift }) {
     pads[track].forEach((button, step) => {
       const on = isOn(beat, track, step);
       const lift = on && tuned ? liftAt(beat, track, step) : 0; // a drum keeps a copied lift, unheard
+      const held = showHold(button, beat.rows[track], step);
       button.setAttribute('aria-pressed', String(on));
-      button.setAttribute('aria-label', padLabel(sound, step, lift));
+      button.setAttribute('aria-label', padLabel(sound, step, lift, held));
       button.classList.toggle('on', on);
       button.classList.toggle('tuned', tuned);
       button.dataset.lift = liftMark(lift);

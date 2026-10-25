@@ -9,10 +9,15 @@ export const TOUR_KEY = 'poprocks.tour';
 const GAP = 16;
 const RING = 8;
 
-// Task 84: a row's name opens its sounds, and a held note gets the key slider.
+// Held notes (task 84 PR 3): a slide stretches a note. It has its own tour too, so kids who saw
+// PR 2's new steps still see it once.
+const STRETCH = { name: 'stretch', find: '#grid .pad', pic: '👇➡️', text: 'Hold a note, slide it longer' };
+
+// Task 84: a row's name opens its sounds, a held note gets the key slider, and a slide stretches it.
 const MIX = [
   { name: 'names', find: '#grid .sound', pic: '🎹▾', text: 'Tap a name to change sounds' },
   { name: 'hold', find: '#grid .pad.tuned', pic: '👇↕', text: 'Hold a note: higher or lower' },
+  STRETCH,
 ];
 
 export const TOURS = {
@@ -27,6 +32,7 @@ export const TOURS = {
   ],
   // Task 84's new steps, once, for kids who already did the tour above (it covers them).
   mix: MIX,
+  holds: [STRETCH],
   watch: [
     { name: 'effects', find: '#watch-fx, [data-tour="effects"]', pic: '🪄', text: 'Add magic effects' },
     { name: 'save', find: '#watch-save', pic: '💾', text: 'Save it to keep it!' },
@@ -34,7 +40,7 @@ export const TOURS = {
 };
 
 // A tour that has another's steps marks that one seen too.
-const COVERS = { beats: ['mix'] };
+const COVERS = { beats: ['mix', 'holds'], mix: ['holds'] };
 
 const shown = new Set();
 let storage = null;

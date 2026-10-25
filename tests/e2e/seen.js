@@ -4,5 +4,5 @@ import { TOUR_KEY } from '../../js/tour.js';
 
 export const tourSeen = (origin) => ({
   cookies: [],
-  origins: [{ origin, localStorage: [{ name: TOUR_KEY, value: JSON.stringify(['beats', 'mix', 'watch']) }] }],
+  origins: [{ origin, localStorage: [{ name: TOUR_KEY, value: JSON.stringify(['beats', 'mix', 'holds', 'watch']) }] }],
 });

@@ -72,10 +72,10 @@ test('the tour runs on first open, one control at a time, and never again', asyn
   await expect(tour(page)).toBeVisible();
   await expect(page.locator('.tour-next')).toBeFocused();
   await expect(page.locator('.tour-text')).toHaveText('Tap squares to make a beat');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'longer']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'stretch', 'longer']);
   await expect(page.locator('#play')).toBeFocused();
   await expect(page.locator('#play')).toContainText('Play');
-  expect(await page.evaluate((key) => localStorage.getItem(key), TOUR_KEY)).toBe('["beats","mix"]');
+  expect(await page.evaluate((key) => localStorage.getItem(key), TOUR_KEY)).toBe('["beats","mix","holds"]');
 
   await page.reload();
   await page.click('#start-btn');
@@ -85,10 +85,10 @@ test('the tour runs on first open, one control at a time, and never again', asyn
 
 test('the last step says Got it! and has no Skip', async ({ page }) => {
   await start(page);
-  for (let i = 0; i < 7; i += 1) await page.click('.tour-next');
+  for (let i = 0; i < 8; i += 1) await page.click('.tour-next');
   await expect(page.locator('.tour-next')).toHaveText('Got it!');
   await expect(page.locator('.tour-skip')).toBeHidden();
-  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(8);
+  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(9);
 });
 
 const ENDINGS = {
@@ -136,7 +136,7 @@ test('❓ Help replays the tour from the start, on a laptop and from More on a p
   await page.click('#help');
   await expect(tour(page)).toBeVisible();
   await expect(page.locator('#more')).toHaveAttribute('aria-expanded', 'false');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'longer']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'stretch', 'longer']);
 });
 
 test('a control that is there gets its step; a missing, hidden or vanished one is skipped', async ({ page }) => {
@@ -145,7 +145,7 @@ test('a control that is there gets its step; a missing, hidden or vanished one i
   await page.goto('./');
   await page.evaluate(addStandIns);
   await page.click('#start-btn');
-  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'longer']);
+  expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'stretch', 'longer']);
 
   await page.evaluate(() => { document.getElementById('sounds').hidden = true; });
   await page.click('#help');
@@ -156,6 +156,7 @@ test('a control that is there gets its step; a missing, hidden or vanished one i
   expect(await stepName(page)).toBe('slots');
   await page.click('.tour-next');
   expect(await stepName(page), 'the hidden Sounds button is skipped').toBe('names');
+  await page.click('.tour-next');
   await page.click('.tour-next');
   await page.click('.tour-next');
   expect(await stepName(page)).toBe('longer');
@@ -241,7 +242,7 @@ for (const view of SIZES) {
       await page.click('.tour-next');
     }
     // On a phone on its side, Sounds and ➕ wait under More, and their steps point at More.
-    expect(seen).toEqual(expect.arrayContaining(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'longer']));
+    expect(seen).toEqual(expect.arrayContaining(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'stretch', 'longer']));
 
     await openCamera(page);
     await record(page, 1);
@@ -265,17 +266,35 @@ test('on a phone on its side, Sounds and ➕ point at More, where they are folde
     return spot.x <= more.x && spot.x + spot.width >= more.x + more.width;
   };
   await expect.poll(ringsMore, { message: 'the lit ring sits around More' }).toBe(true);
-  for (let i = 0; i < 3; i += 1) await page.click('.tour-next');
+  for (let i = 0; i < 4; i += 1) await page.click('.tour-next');
   expect(await stepName(page)).toBe('longer');
   await expect(page.locator('.tour-text')).toHaveText('Make it longer: tap More');
 });
 
-// Task 84: kids who already did the tour see only its 2 new steps, once.
-test('after the old tour, only the new steps show, once: tap a name, hold a note', async ({ page }) => {
+// Task 84: kids who already did the tour see only its 3 new steps, once.
+// Held notes: a device that saw PR 2's new steps (Travis's included) still gets the stretch card, once.
+test('after PR 2’s tour, only the stretch card shows, once, even on an empty beat', async ({ page }) => {
+  await page.addInitScript((key) => {
+    if (sessionStorage.getItem('again')) return;
+    localStorage.setItem(key, '["beats","mix","watch"]');
+    localStorage.setItem('poprocks.v2', '{"slot":1,"slots":[]}'); // beat 2: empty
+  }, TOUR_KEY);
+  await start(page);
+  await expect(page.locator('.pad.on')).toHaveCount(0);
+  await expect(page.locator('.tour-text')).toHaveText('Hold a note, slide it longer');
+  expect(await walk(page)).toEqual(['stretch']);
+  await page.evaluate(() => sessionStorage.setItem('again', '1'));
+  await page.reload();
+  await page.click('#start-btn');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(tour(page)).toBeHidden();
+});
+
+test('after the old tour, only the new steps show, once: tap a name, hold a note, slide it', async ({ page }) => {
   await page.addInitScript((key) => { if (!sessionStorage.getItem('again')) localStorage.setItem(key, '["beats","watch"]'); }, TOUR_KEY);
   await start(page);
   await expect(page.locator('.tour-text')).toHaveText('Tap a name to change sounds');
-  expect(await walk(page)).toEqual(['names', 'hold']);
+  expect(await walk(page)).toEqual(['names', 'hold', 'stretch']);
   await page.evaluate(() => sessionStorage.setItem('again', '1'));
   await page.reload();
   await page.click('#start-btn');

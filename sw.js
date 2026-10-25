@@ -27,6 +27,8 @@ const FILES = [
   './sounds/riff.mp3',
   './js/strip.js',
   './js/tour.js',
+  './js/holds.js',
+  './js/stretch.js',
   './js/hold.js',
   './js/note.js',
   './js/picker.js',

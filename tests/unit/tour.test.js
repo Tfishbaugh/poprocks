@@ -72,9 +72,10 @@ test('what was seen reads back, and bad or missing data means nothing was seen',
   assert.equal(readSeen(null).size, 0);
 });
 
-test('the tour goes pads, Play, video, beat numbers, sounds, names, holding, then length, in few words', () => {
-  assert.deepEqual(TOURS.beats.map((step) => step.name), ['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'longer']);
-  assert.deepEqual(TOURS.mix.map((step) => step.name), ['names', 'hold'], 'kids who did the tour see just the new steps');
+test('the tour goes pads, Play, video, beat numbers, sounds, names, holding, stretching, then length, in few words', () => {
+  assert.deepEqual(TOURS.beats.map((step) => step.name), ['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'stretch', 'longer']);
+  assert.deepEqual(TOURS.mix.map((step) => step.name), ['names', 'hold', 'stretch'], 'kids who did the tour see just the new steps');
+  assert.deepEqual(TOURS.holds.map((step) => step.name), ['stretch'], 'and kids who saw those, just the stretch');
   assert.deepEqual(TOURS.watch.map((step) => step.name), ['effects', 'save']);
   Object.values(TOURS).flat().forEach((step) => {
     assert.ok(step.find && step.pic, step.name);

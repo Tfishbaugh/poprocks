@@ -1,7 +1,7 @@
 import {
   TUNED, audioSupported, createEngine, kitById, kitOf, kitStarters, setAudioSession, soundById,
 } from './sounds.js';
-import { createScheduler } from './scheduler.js';
+import { createScheduler, stepDuration } from './scheduler.js';
 import {
   BAR, BPM_MAX, BPM_MIN, BPM_STEP, LIFT_MAX, MAX_STEPS, MAX_TRACKS, MIN_TRACKS, addRow, canDouble, clear, copyBeat,
   copyRow, createHistory, double, isEmpty, isOn, liftAt, longer, removeRow, shorter, stepCount, surprise, toggle,
@@ -19,6 +19,8 @@ import {
 import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
+import { createHoldPlayer, createNotePreview, noteLift, noteStart } from './holds.js';
+import { createStretch } from './stretch.js';
 import { createHold } from './hold.js';
 import { createNotePanel } from './note.js';
 import { createAddRow, newRowSound, placeAddRow } from './rows.js';
@@ -53,6 +55,8 @@ const queue = [];
 let screen = 'start';
 let engine = null;
 let scheduler = null;
+let holdPlayer = null;
+let notePreview = null;
 let frame = 0;
 let lastTouch = 0;
 let camera = null;
@@ -197,9 +201,13 @@ function commit(next) {
   setBeat(next);
 }
 
+// A tapped tuned note plays as the beat will play it, for its square (held notes, task 84);
+// a drum is its whole hit, and the next tap doesn't cut it off.
 function onToggle(track, step) {
   commit(toggle(beat(), track, step));
-  if (!scheduler?.playing && isOn(beat(), track, step)) engine?.play(beat().sounds[track], undefined, step);
+  if (!isOn(beat(), track, step)) return;
+  if (TUNED.has(beat().sounds[track])) return previewNote(track, beat().rows[track], step);
+  if (!scheduler?.playing) engine?.play(beat().sounds[track], undefined, step);
 }
 
 function changeTempo(delta) {
@@ -444,20 +452,29 @@ function onHold() {
   noteVisit = { pushed: false };
 }
 
-// A lift without a slide opens the panel. Until held notes add ◀ ▶, only tuned sounds have one,
-// so a long press on any other square is just a slow tap.
+// Held notes (task 84): the hold makes an empty square a note, and a slide stretches it.
+function onHoldNote(note) {
+  onHold();
+  stretch.hold(note);
+}
+
+// A lift without a slide opens the panel for every sound: ◀ ▶ for its length, and the key slider
+// for a tuned one. It keeps clear of the steps the note can grow into.
 function onLift(note, { moved }) {
+  if (moved) stretch.slid();
   if (moved || !note) return endNoteVisit();
-  const { track, step } = note;
-  if (!TUNED.has(beat().sounds[track])) return slowTap(track, step);
-  if (!isOn(beat(), track, step)) editNote(toggle(beat(), track, step));
-  notePanel.open(note, { lift: liftAt(beat(), track, step), tuned: true, label: padLabel(soundAt(track), step, 0) });
+  const { track } = note;
+  const step = stretch.open(note); // a held note's height is its first step's
+  const target = { ...note, step, box: stretch.room(note) };
+  notePanel.open(target, { lift: liftAt(beat(), track, step), tuned: TUNED.has(beat().sounds[track]), label: padLabel(soundAt(track), step, 0) });
   history.pushState({ poprocks: 'note' }, '');
 }
 
-function slowTap(track, step) {
-  endNoteVisit();
-  onToggle(track, step);
+// A held note's sound, as the beat would play it, while the beat is stopped.
+function previewNote(track, row, start) {
+  if (!engine || scheduler.playing) return;
+  notePreview ??= createNotePreview(engine);
+  notePreview.play(row, beat().sounds[track], start, stepDuration(beat().bpm), noteLift(beat(), track, start));
 }
 
 function endNoteVisit() {
@@ -470,9 +487,11 @@ function onNoteLift({ track, step }, lift) {
   if (!scheduler.playing) engine.play(beat().sounds[track], undefined, step, lift);
 }
 
-// Shift+↑ and Shift+↓ on a tuned note: the key slider's keys, one ↩ each.
-function onLiftKey(track, step, delta) {
-  const tuned = isOn(beat(), track, step) && TUNED.has(beat().sounds[track]);
+// Shift+↑ and Shift+↓ on a tuned note: the key slider's keys, one ↩ each. On a held note's bar
+// they move the note, whose height is its first step's.
+function onLiftKey(track, at, delta) {
+  const step = noteStart(beat().rows[track], at);
+  const tuned = step >= 0 && TUNED.has(beat().sounds[track]);
   if (!tuned) return say('Only a lit note with a tune goes higher or lower.');
   const lift = liftAt(beat(), track, step) + delta;
   if (Math.abs(lift) > LIFT_MAX) return;
@@ -493,10 +512,10 @@ function onNoteClosed(note) {
 
 // ---- Playing ----
 
+// Held notes ring or roll, and end on the audio clock (task 84: js/holds.js).
 function onStep(step, time) {
-  beat().sounds.forEach((id, track) => {
-    if (isOn(beat(), track, step)) engine.play(id, time, step, liftAt(beat(), track, step));
-  });
+  holdPlayer.trim(trackCount(beat()), time);
+  beat().sounds.forEach((id, track) => holdPlayer.step(beat().rows[track], track, id, step, time, noteLift(beat(), track, step)));
   queue.push({ step, time });
 }
 
@@ -548,6 +567,7 @@ function draw() {
 
 function startPlaying() {
   if (scheduler.playing) return;
+  notePreview?.stop();
   engine.resume();
   lastTouch = 0;
   scheduler.setBpm(beat().bpm);
@@ -561,6 +581,7 @@ function startPlaying() {
 function stopPlaying() {
   if (!scheduler?.playing) return;
   scheduler.stop();
+  holdPlayer.releaseAll(engine.ctx.currentTime);
   queue.length = 0;
   cancelAnimationFrame(frame);
   grid.setNow(-1);
@@ -577,6 +598,7 @@ function togglePlay() {
 function onStart() {
   if (!audioSupported()) return showStartNote('This browser can’t play sounds. Try Safari or Chrome.');
   engine ??= createEngine();
+  holdPlayer ??= createHoldPlayer(engine);
   engine.load();
   scheduler ??= createScheduler({ now: () => engine.ctx.currentTime, onStep, bpm: beat().bpm });
   setAudioSession('playback');
@@ -584,6 +606,7 @@ function onStart() {
   show('beats');
   tourOnce('beats');
   tourOnce('mix');
+  tourOnce('holds'); // held notes (task 84)
 }
 
 function showStartNote(text) {
@@ -858,8 +881,17 @@ function wakeAudio() {
 }
 
 const grid = createGrid($('grid'), { onToggle, onSound, onLift: onLiftKey });
-// Held notes (PR 3) add onHold and onMove hooks here: the hold's start and the finger's slide.
-createHold($('grid'), { onHold, onLift, onCancel: endNoteVisit });
+// Held notes (task 84): a slide or ◀ ▶ shares the hold's one ↩; Shift+→ and Shift+← are one each.
+const stretch = createStretch({
+  root: $('grid'),
+  slot: $('note-length'),
+  beat,
+  commit,
+  edit: editNote,
+  announce: say,
+  preview: previewNote,
+});
+createHold($('grid'), { onHold: onHoldNote, onMove: (note) => stretch.move(note), onLift, onCancel: endNoteVisit });
 const notePanel = createNotePanel($('note-panel'), { onLift: onNoteLift, onClose: onNoteClosed });
 const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
 const rowPicker = createRowPicker($('row-sheet'), { onPick: onPickRowSound, onClose: onRowClosed });

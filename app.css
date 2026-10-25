@@ -407,6 +407,31 @@ button:disabled { cursor: default; opacity: 0.4; }
   pointer-events: none;
 }
 
+/* ---- Held notes (task 84): one bar in the row's colour, rounded only at its ends ---- */
+
+/* A step joined to the next drops its border on that side, so the colour runs straight on. */
+@media (orientation: landscape) {
+  .pad.join-next { border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .pad.join-prev { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+}
+
+/* Upright, the bar runs down, and only its last step keeps the shade along its foot. */
+@media (orientation: portrait) {
+  .pad.join-next { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: none; }
+  .pad.join-prev { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+}
+
+/* The playhead brightens a bar without pushing one step out of it. */
+.pad.join-prev.now, .pad.join-next.now { transform: none; }
+
+/* ◀ ▶ in the note panel: a step shorter or longer. They share ✓ Done's row, so the panel is no
+   taller than before and fits a phone on its side. */
+.note-panel .note-card { display: grid; grid-template-columns: auto auto; justify-items: center; align-items: center; }
+.note-title, .note-pitch { grid-column: 1 / -1; }
+.note-length { display: flex; gap: 8px; }
+.note-step { background: var(--pad-off); }
+.note-step[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+
 /* ---- 📋 Copy sheet (task 80, lane A) ---- */
 
 .sheet {

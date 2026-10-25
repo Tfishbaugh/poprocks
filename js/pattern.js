@@ -1,8 +1,11 @@
 // A beat is { bpm, rows, sounds, pitch }, with 8 to 12 rows:
 // - rows: one string per row, 'x' on and '.' off, all the same length: 16, 32, 48 or 64 steps;
+//   '-' holds the note before it, so 'x---' is a 4-step note (js/holds.js);
 // - sounds: the sound id each row plays (sounds.js owns the sounds), so any row can play any sound;
 // - pitch: per row, a number per step: how many steps of E minor the key slider moves that note
-//   (task 84), 0 as written. Only tuned sounds use it.
+//   (task 84), 0 as written. Only tuned sounds use it; a held note plays at its first step's.
+
+import { noteLift, noteStart, removeNote, tidyRow } from './holds.js';
 
 export const MIN_TRACKS = 8;
 export const MAX_TRACKS = 12;
@@ -17,7 +20,7 @@ export const BPM_DEFAULT = 100;
 // Party's sounds, row by row (tests/unit/kits.test.js checks they match sounds.js).
 export const DEFAULT_SOUNDS = ['kick', 'snare', 'clap', 'hat', 'cowbell', 'bass', 'laser', 'boing'];
 
-const ROW = /^[x.]+$/;
+const ROW = /^[x.-]+$/;
 const ID = /^[a-z0-9-]{1,24}$/;
 const HISTORY_MAX = 50;
 
@@ -55,7 +58,7 @@ export function emptyBeat(bpm = BPM_DEFAULT, steps = BAR, sounds = DEFAULT_SOUND
 // A starter or an old save has no pitch: its notes play as written.
 export function copyBeat(beat) {
   const pitch = beat.pitch ?? beat.rows.map((row) => flat(row.length));
-  return { bpm: beat.bpm, rows: [...beat.rows], sounds: [...(beat.sounds ?? DEFAULT_SOUNDS)], pitch: pitch.map((lane) => [...lane]) };
+  return { bpm: beat.bpm, rows: beat.rows.map(tidyRow), sounds: [...(beat.sounds ?? DEFAULT_SOUNDS)], pitch: pitch.map((lane) => [...lane]) };
 }
 
 export function stepCount(beat) {
@@ -66,25 +69,30 @@ export function trackCount(beat) {
   return beat.rows.length;
 }
 
+// Lit: a note, or a step that holds one.
 export function isOn(beat, track, step) {
-  return beat.rows[track][step] === 'x';
+  return beat.rows[track][step] !== '.';
 }
 
 export function isEmpty(beat) {
   return beat.rows.every((row) => !row.includes('x'));
 }
 
+// A tap anywhere on a held note's bar takes the whole note away.
 function flip(row, step) {
-  const next = row[step] === 'x' ? '.' : 'x';
-  return row.slice(0, step) + next + row.slice(step + 1);
+  if (row[step] !== '.') return removeNote(row, step);
+  return row.slice(0, step) + 'x' + row.slice(step + 1);
 }
 
 const setAt = (lane, step, value) => lane.map((old, i) => (i === step ? value : old));
 
-// A new note plays as written, and a note turned off forgets how far it was moved.
+// A new note plays as written, and a note turned off forgets how far it was moved. A held note's
+// pitch is its first step's, wherever on the bar it was tapped.
 export function toggle(beat, track, step) {
+  const start = noteStart(beat.rows[track], step);
+  const at = start < 0 ? step : start;
   const rows = beat.rows.map((row, i) => (i === track ? flip(row, step) : row));
-  return { ...beat, rows, pitch: beat.pitch.map((lane, i) => (i === track ? setAt(lane, step, 0) : lane)) };
+  return { ...beat, rows, pitch: beat.pitch.map((lane, i) => (i === track ? setAt(lane, at, 0) : lane)) };
 }
 
 export function clear(beat) {
@@ -132,12 +140,19 @@ export function removeRow(beat, track) {
 // ---- Longer, shorter, ×2 and copy: rows and their pitch change together ----
 
 // `change` gets a row (a string) or its pitch (an array), so it may use only what both have.
-const mapLanes = (beat, change) => ({ ...beat, rows: beat.rows.map(change), pitch: beat.pitch.map(change) });
+// ➕ ➖ and ×2 can leave a '-' cut off from its note; tidying makes it a note of its own.
+const mapLanes = (beat, change) => ({ ...beat, rows: beat.rows.map((row) => tidyRow(change(row))), pitch: beat.pitch.map(change) });
 
 // ➕ Make it longer: 16 more steps, a copy of the last 16, so a kid can add on and change it.
+// The copy is tidied on its own, so a note held into the last 16 starts again at the copy's first
+// step, at its height, and never joins the note before the seam.
 export function longer(beat) {
   if (stepCount(beat) >= MAX_STEPS) return beat;
-  return mapLanes(beat, (lane) => lane.concat(lane.slice(-BAR)));
+  const seam = stepCount(beat);
+  const grown = mapLanes(beat, (lane) => lane.concat(lane.slice(-BAR)));
+  const rows = beat.rows.map((row) => row + tidyRow(row.slice(-BAR)));
+  const pitch = grown.pitch.map((lane, track) => setAt(lane, seam, noteLift(beat, track, seam - BAR)));
+  return { ...grown, rows, pitch };
 }
 
 // ➖ Shorter: takes the last 16 steps away.
