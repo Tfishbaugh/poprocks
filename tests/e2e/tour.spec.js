@@ -75,7 +75,7 @@ test('the tour runs on first open, one control at a time, and never again', asyn
   expect(await walk(page)).toEqual(['pads', 'play', 'video', 'slots', 'sounds', 'names', 'hold', 'stretch', 'longer']);
   await expect(page.locator('#play')).toBeFocused();
   await expect(page.locator('#play')).toContainText('Play');
-  expect(await page.evaluate((key) => localStorage.getItem(key), TOUR_KEY)).toBe('["beats","mix"]');
+  expect(await page.evaluate((key) => localStorage.getItem(key), TOUR_KEY)).toBe('["beats","mix","holds"]');
 
   await page.reload();
   await page.click('#start-btn');
@@ -272,6 +272,24 @@ test('on a phone on its side, Sounds and ➕ point at More, where they are folde
 });
 
 // Task 84: kids who already did the tour see only its 3 new steps, once.
+// Held notes: a device that saw PR 2's new steps (Travis's included) still gets the stretch card, once.
+test('after PR 2’s tour, only the stretch card shows, once, even on an empty beat', async ({ page }) => {
+  await page.addInitScript((key) => {
+    if (sessionStorage.getItem('again')) return;
+    localStorage.setItem(key, '["beats","mix","watch"]');
+    localStorage.setItem('poprocks.v2', '{"slot":1,"slots":[]}'); // beat 2: empty
+  }, TOUR_KEY);
+  await start(page);
+  await expect(page.locator('.pad.on')).toHaveCount(0);
+  await expect(page.locator('.tour-text')).toHaveText('Hold a note, slide it longer');
+  expect(await walk(page)).toEqual(['stretch']);
+  await page.evaluate(() => sessionStorage.setItem('again', '1'));
+  await page.reload();
+  await page.click('#start-btn');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(tour(page)).toBeHidden();
+});
+
 test('after the old tour, only the new steps show, once: tap a name, hold a note, slide it', async ({ page }) => {
   await page.addInitScript((key) => { if (!sessionStorage.getItem('again')) localStorage.setItem(key, '["beats","watch"]'); }, TOUR_KEY);
   await start(page);

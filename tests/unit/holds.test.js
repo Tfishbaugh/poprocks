@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  createHoldPlayer, createNotePreview, cue, holdTo, noteEnd, noteStart, removeNote, stretchLimit, tidy, tidyRow,
+  createHoldPlayer, createNotePreview, cue, holdTo, noteEnd, noteLift, noteStart, removeNote, stretchLimit, tidyRow,
 } from '../../js/holds.js';
 import {
   copyBeat, copyRow, double, emptyBeat, isEmpty, isOn, isValidBeat, longer, shorter, toggle,
@@ -28,7 +28,6 @@ test('tidying turns a cut-off hold into a note of its own, and leaves good rows 
   assert.equal(tidyRow('x.-.-'), 'x.x.x');
   assert.equal(tidyRow('x---x-..'), 'x---x-..');
   assert.equal(tidyRow('........'), '........');
-  assert.deepEqual(tidy({ bpm: 90, rows: ['-.', 'x-'] }), { bpm: 90, rows: ['x.', 'x-'] });
 });
 
 test('a note is found from any step of its bar, and ends where its holds end', () => {
@@ -282,25 +281,100 @@ test('in dark mode a held bar stands out 4.5:1 from the empty squares around it,
   }));
 });
 
-test('a preview plays one note for its length from now, and the next preview ends it', () => {
+// A fake engine that logs where each sound goes, with channels whose fades are logged too.
+function previewRig() {
   const log = [];
+  const channels = [];
   const engine = {
     ctx: { currentTime: 10 },
-    play: (id, time, step) => log.push({ type: 'hit', id, time, step }),
-    hold(id, time, step) {
-      const note = { type: 'hold', id, time, step, offs: [] };
+    channel() {
+      const channel = { faded: null, gain: { setTargetAtTime: (value, time) => { channel.faded = { value, time }; } } };
+      channels.push(channel);
+      return channel;
+    },
+    play: (id, time, step, lift, dest) => log.push({ type: 'hit', id, time, step, lift, dest }),
+    hold(id, time, step, lift, dest) {
+      const note = { type: 'hold', id, time, step, lift, dest, off: null };
       log.push(note);
-      return { release: (off) => note.offs.push(off) };
+      return { release: (off) => { note.off ??= off; } };
     },
   };
-  const preview = createNotePreview(engine);
-  preview('..x---..', 'bass', 2, 0.1);
+  return { engine, log, channels };
+}
+
+test('a preview plays one note for its length, at its height, through its own channel', () => {
+  const { engine, log, channels } = previewRig();
+  createNotePreview(engine).play('..x---..', 'bass', 2, 0.1, 2);
   const [held] = log;
   assert.equal(held.step, 2);
+  assert.equal(held.lift, 2);
+  assert.equal(held.dest, channels[0]);
   assert.ok(Math.abs(held.time - 10.02) < EPS);
-  assert.ok(Math.abs(held.offs[0] - 10.42) < EPS, 'off after 4 steps');
-  engine.ctx.currentTime = 10.1;
-  preview('..x---..', 'snare', 2, 0.1);
-  assert.ok(Math.abs(held.offs[1] - 10.12) < EPS, 'the next preview ends it');
-  assert.deepEqual(log.slice(1).map((entry) => entry.step), [2, 3, 4, 5], 'a held snare rolls');
+  assert.ok(Math.abs(held.off - 10.42) < EPS, 'off after 4 steps');
+});
+
+test('the next preview, or stop, fades out what’s left of the last one, a drum roll too', () => {
+  const { engine, log, channels } = previewRig();
+  const preview = createNotePreview(engine);
+  preview.play('x-----------', 'snare', 0, 0.1);
+  assert.equal(log.length, 12, 'a held snare rolls');
+  log.forEach((hit) => assert.equal(hit.dest, channels[0]));
+  engine.ctx.currentTime = 10.28;
+  preview.play('x-----------', 'snare', 0, 0.1);
+  assert.deepEqual(channels[0].faded, { value: 0, time: 10.28 }, 'the first roll fades out');
+  assert.equal(channels[1].faded, null);
+  preview.stop();
+  assert.equal(channels[1].faded.value, 0, 'stop (Play) fades the second');
+});
+
+// ---- Held notes and the key slider ----
+
+const withPitch = (beat, track, step, lift) => ({
+  ...beat, pitch: beat.pitch.map((lane, i) => (i === track ? lane.map((old, s) => (s === step ? lift : old)) : lane)),
+});
+
+test('a held note plays at its first step’s height all along its bar', () => {
+  const beat = withPitch(withRow('..x---..........'), 5, 2, 2);
+  [2, 3, 4, 5].forEach((step) => assert.equal(noteLift(beat, 5, step), 2, `step ${step}`));
+  assert.equal(noteLift(beat, 5, 0), 0, 'an empty square has none');
+});
+
+test('a tap mid-bar takes the note away and forgets its first step’s height', () => {
+  const beat = withPitch(withRow('..x---..........'), 5, 2, 3);
+  const tapped = toggle(beat, 5, 4);
+  assert.equal(tapped.rows[5], '................');
+  assert.equal(tapped.pitch[5][2], 0);
+});
+
+test('a ringing note plays again when the key slider moves it, and not otherwise', () => {
+  const { engine, log } = previewRig();
+  const player = createHoldPlayer(engine);
+  const row = 'x-----..';
+  player.step(row, 0, 'bass', 0, 1, 0);
+  player.step(row, 0, 'bass', 1, 1.1, 0);
+  player.step(row, 0, 'bass', 2, 1.2, 2);
+  const holds = log.filter((entry) => entry.type === 'hold');
+  assert.equal(holds.length, 2);
+  assert.equal(holds[0].off, 1.2, 'the old height ends where the new one starts');
+  assert.equal(holds[1].lift, 2);
+});
+
+test('rows past the beat’s last end their held notes (a row taken away)', () => {
+  const { engine, log } = previewRig();
+  const player = createHoldPlayer(engine);
+  player.step('x-------', 3, 'bass', 0, 1, 0);
+  player.step('x-------', 9, 'synth', 0, 1, 0);
+  player.trim(8, 1.3);
+  const [kept, cut] = log;
+  assert.equal(cut.off, 1.3);
+  assert.equal(kept.off, null);
+});
+
+test('➕ copies a note held into the last 16 as a note of its own, at its height, never joined', () => {
+  // 32 steps: a note at 13 held to 21 (lifted 2), and a note on the last step.
+  const beat = withPitch(withRow(`${'.'.repeat(12)}x--------${'.'.repeat(10)}x`), 5, 12, 2);
+  const next = longer(beat);
+  assert.equal(next.rows[5].slice(31, 37), 'xx----', 'the last step stays one step; the copy starts a note');
+  assert.equal(next.pitch[5][32], 2);
+  assert.equal(next.rows[5].length, 48);
 });

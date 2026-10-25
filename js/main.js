@@ -463,7 +463,7 @@ function onLift(note, { moved }) {
 function previewNote(track, row, start) {
   if (!engine || scheduler.playing) return;
   notePreview ??= createNotePreview(engine);
-  notePreview(row, beat().sounds[track], start, stepDuration(beat().bpm), noteLift(beat(), track, start));
+  notePreview.play(row, beat().sounds[track], start, stepDuration(beat().bpm), noteLift(beat(), track, start));
 }
 
 function endNoteVisit() {
@@ -503,6 +503,7 @@ function onNoteClosed(note) {
 
 // Held notes ring or roll, and end on the audio clock (task 84: js/holds.js).
 function onStep(step, time) {
+  holdPlayer.trim(trackCount(beat()), time);
   beat().sounds.forEach((id, track) => holdPlayer.step(beat().rows[track], track, id, step, time, noteLift(beat(), track, step)));
   queue.push({ step, time });
 }
@@ -555,6 +556,7 @@ function draw() {
 
 function startPlaying() {
   if (scheduler.playing) return;
+  notePreview?.stop();
   engine.resume();
   lastTouch = 0;
   scheduler.setBpm(beat().bpm);
@@ -593,6 +595,7 @@ function onStart() {
   show('beats');
   tourOnce('beats');
   tourOnce('mix');
+  tourOnce('holds'); // held notes (task 84)
 }
 
 function showStartNote(text) {

@@ -31,6 +31,7 @@ export function createHold(root, { onHold = () => {}, onMove = () => {}, onLift 
   }
 
   function hold() {
+    clearTimeout(press.timer); // a mouse that drags right away holds early; the timer mustn't hold it again
     press.held = true;
     press.pad.classList.add('held');
     navigator.vibrate?.(15);

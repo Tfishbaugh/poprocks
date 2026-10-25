@@ -244,6 +244,19 @@ test.describe('stretching with a mouse', () => {
     await expect(panel(page)).toBeHidden();
   });
 
+  test('a mouse drag that starts at once, pauses past the hold, then carries on is one bar and one ↩', async ({ page }) => {
+    const [a, b, c] = [await center(pad(page, 5, 4)), await center(pad(page, 5, 5)), await center(pad(page, 5, 7))];
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 3 });
+    await page.waitForTimeout(400);
+    await page.mouse.move(c.x, c.y, { steps: 4 });
+    await page.mouse.up();
+    expect(await lit(page, 5)).toEqual([4, 5, 6, 7]);
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([]);
+  });
+
   test('a bar grabbed anywhere moves its end as far as the finger; sliding back shortens it', async ({ page }) => {
     await holdBass(page, 4); // steps 3 to 6
     const [from, ahead, back] = [await center(pad(page, 5, 3)), await center(pad(page, 5, 5)), await center(pad(page, 5, 1))];
@@ -385,5 +398,34 @@ test.describe('held notes on rows 9 to 12', () => {
     await page.keyboard.press('Shift+ArrowRight');
     expect(await lit(page, 9)).toEqual([4, 5, 6]);
     expect(await corners(pad(page, 9, 5))).toMatchObject({ top: 0, bottom: 0 });
+  });
+});
+
+// A held note's height is its first step's, wherever on its bar the key slider is used.
+test.describe('the key slider on a held note', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await holdBass(page, 4); // steps 3 to 6
+  });
+
+  test('Shift+↑ on a middle step moves the note’s first step', async ({ page }) => {
+    await pad(page, 5, 4).focus();
+    await page.keyboard.press('Shift+ArrowUp');
+    await expect(pad(page, 5, 2)).toHaveAttribute('data-lift', '↑1');
+    await expect(pad(page, 5, 4)).toHaveAttribute('data-lift', '');
+    await expect(pad(page, 5, 2)).toHaveAttribute('aria-label', 'Bass, step 3, held, 1 higher');
+  });
+
+  test('a hold on a middle step opens the panel at the first step’s height, and moves that', async ({ page }) => {
+    await pad(page, 5, 2).focus();
+    await page.keyboard.press('Shift+ArrowUp');
+    await mouseHold(page, pad(page, 5, 4));
+    await expect(page.locator('#note-title')).toHaveText('Bass, step 3');
+    await expect(page.locator('#note-slider')).toHaveValue('1');
+    await page.locator('#note-slider').press('ArrowUp');
+    await page.click('#note-done');
+    await expect(pad(page, 5, 2)).toHaveAttribute('data-lift', '↑2');
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
   });
 });

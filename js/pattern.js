@@ -5,7 +5,7 @@
 // - pitch: per row, a number per step: how many steps of E minor the key slider moves that note
 //   (task 84), 0 as written. Only tuned sounds use it; a held note plays at its first step's.
 
-import { noteStart, removeNote, tidyRow } from './holds.js';
+import { noteLift, noteStart, removeNote, tidyRow } from './holds.js';
 
 export const MIN_TRACKS = 8;
 export const MAX_TRACKS = 12;
@@ -144,9 +144,15 @@ export function removeRow(beat, track) {
 const mapLanes = (beat, change) => ({ ...beat, rows: beat.rows.map((row) => tidyRow(change(row))), pitch: beat.pitch.map(change) });
 
 // ➕ Make it longer: 16 more steps, a copy of the last 16, so a kid can add on and change it.
+// The copy is tidied on its own, so a note held into the last 16 starts again at the copy's first
+// step, at its height, and never joins the note before the seam.
 export function longer(beat) {
   if (stepCount(beat) >= MAX_STEPS) return beat;
-  return mapLanes(beat, (lane) => lane.concat(lane.slice(-BAR)));
+  const seam = stepCount(beat);
+  const grown = mapLanes(beat, (lane) => lane.concat(lane.slice(-BAR)));
+  const rows = beat.rows.map((row) => row + tidyRow(row.slice(-BAR)));
+  const pitch = grown.pitch.map((lane, track) => setAt(lane, seam, noteLift(beat, track, seam - BAR)));
+  return { ...grown, rows, pitch };
 }
 
 // ➖ Shorter: takes the last 16 steps away.

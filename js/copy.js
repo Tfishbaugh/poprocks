@@ -8,7 +8,7 @@ function drawRow(ctx, row, track, color) {
   const width = ctx.canvas.width / row.length;
   ctx.fillStyle = color;
   [...row].forEach((cell, step) => {
-    if (cell === 'x') ctx.fillRect(step * width, track * 4, Math.max(1, width - 0.5), 3);
+    if (cell !== '.') ctx.fillRect(step * width, track * 4, Math.max(1, width - 0.5), 3);
   });
 }
 

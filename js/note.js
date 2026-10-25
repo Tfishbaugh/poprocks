@@ -17,7 +17,7 @@ export function liftMark(lift) {
 }
 
 // open(note, { lift, tuned, label }): note is hold.js's { pad, track, step }. An untuned note
-// (a drum) gets no slider; until held notes fill #note-length, main.js only opens it for tuned ones.
+// (a drum) gets no slider; held notes put ◀ ▶ in #note-length for every sound.
 export function createNotePanel(dialog, { onLift, onClose }) {
   const slider = dialog.querySelector('#note-slider');
   const card = dialog.querySelector('.note-card');

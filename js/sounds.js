@@ -538,16 +538,16 @@ export function createEngine(ctx = newContext()) {
     ctx,
     output: bus.output,
     // `lift`: how far the key slider moved the note (tuned sounds only; task 84).
-    play(id, time = ctx.currentTime, step = 0, lift = 0) {
-      hit(id, time, step, bus.input, lift);
+    play(id, time = ctx.currentTime, step = 0, lift = 0, dest = bus.input) {
+      hit(id, time, step, dest, lift);
     },
     // A held note (task 84): it rings until release(time) fades it out on the audio clock,
     // or until CAP if that never comes.
-    hold(id, time = ctx.currentTime, step = 0, lift = 0) {
+    hold(id, time = ctx.currentTime, step = 0, lift = 0, dest = bus.input) {
       const start = Math.max(time, ctx.currentTime);
       const gate = ctx.createGain();
       const sources = [];
-      gate.connect(bus.input);
+      gate.connect(dest);
       fadeOut(gate.gain, start + CAP);
       hit(id, start, step, gate, lift, { sustain: SUSTAINS.get(id) ?? SUSTAIN, cap: CAP + FADE, sources });
       return {
@@ -559,6 +559,12 @@ export function createEngine(ctx = newContext()) {
           sources.forEach((source) => stopAt(source, end + FADE));
         },
       };
+    },
+    // A way into the mix for sounds that may be cut short together: `dest` for play and hold.
+    channel() {
+      const gain = ctx.createGain();
+      gain.connect(bus.input);
+      return gain;
     },
     // A short groove in a kit's sounds. Starting another fades this one out.
     preview(kitId) {

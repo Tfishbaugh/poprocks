@@ -12,10 +12,6 @@ export function tidyRow(row) {
   return row.replace(/(^|\.)-/g, '$1x');
 }
 
-export function tidy(beat) {
-  return { ...beat, rows: beat.rows.map(tidyRow) };
-}
-
 // The first step of the note covering `step`, or -1 on an empty square.
 export function noteStart(row, step) {
   if (row[step] !== 'x' && row[step] !== HOLD) return -1;
@@ -53,9 +49,10 @@ export function removeNote(row, step) {
 }
 
 // How far the key slider moved the note covering `step` (task 84): a held note plays at its first
-// step's height all along its bar. An empty square reads its row's first step, and plays nothing.
+// step's height all along its bar. An empty square has none.
 export function noteLift(beat, track, step) {
-  return beat.pitch[track][Math.max(noteStart(beat.rows[track], step), 0)];
+  const start = noteStart(beat.rows[track], step);
+  return start < 0 ? 0 : beat.pitch[track][start];
 }
 
 // ---- On the grid ----
@@ -95,6 +92,11 @@ export function createHoldPlayer(engine) {
     ringing.delete(track);
   }
 
+  // Rows from `tracks` on end their notes: a row taken away, or another beat with fewer.
+  function trim(tracks, time) {
+    [...ringing.keys()].filter((track) => track >= tracks).forEach((track) => release(track, time));
+  }
+
   return {
     step(row, track, id, step, time, lift = 0) {
       const now = ringing.get(track);
@@ -104,9 +106,8 @@ export function createHoldPlayer(engine) {
       if (action === 'hit') engine.play(id, time, step, lift);
       if (action === 'hold') ringing.set(track, { id, lift, note: engine.hold(id, time, step, lift) });
     },
-    releaseAll(time) {
-      [...ringing.keys()].forEach((track) => release(track, time));
-    },
+    trim,
+    releaseAll: (time) => trim(0, time),
   };
 }
 
@@ -116,20 +117,27 @@ function playNote(player, row, id, start, at, lift) {
   player.releaseAll(at(end + 1));
 }
 
-// Plays one note from now, as the beat would: ringing, or rolling, for its length. Starting
-// another ends a note still ringing from this one.
+// Plays one note from now, as the beat would: ringing, or rolling, for its length. Each one goes
+// through its own channel, so the next one (or stop) fades out whatever is left of it, a roll too.
 export function createNotePreview(engine) {
-  let notes = [];
-  const keep = (note) => {
-    notes.push(note);
-    return note;
-  };
-  const engineKept = { play: engine.play, hold: (...args) => keep(engine.hold(...args)) };
+  let channel = null;
 
-  return function preview(row, id, start, stepTime, lift = 0) {
+  function stop() {
+    channel?.gain.setTargetAtTime(0, engine.ctx.currentTime, 0.015);
+    channel = null;
+  }
+
+  function play(row, id, start, stepTime, lift = 0) {
+    stop();
+    const out = engine.channel();
+    const routed = {
+      play: (sound, time, step, height) => engine.play(sound, time, step, height, out),
+      hold: (sound, time, step, height) => engine.hold(sound, time, step, height, out),
+    };
     const now = engine.ctx.currentTime + 0.02;
-    notes.forEach((note) => note.release(now));
-    notes = [];
-    playNote(createHoldPlayer(engineKept), row, id, start, (step) => now + (step - start) * stepTime, lift);
-  };
+    channel = out;
+    playNote(createHoldPlayer(routed), row, id, start, (step) => now + (step - start) * stepTime, lift);
+  }
+
+  return { play, stop };
 }
