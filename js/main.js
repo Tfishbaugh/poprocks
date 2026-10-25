@@ -3,8 +3,9 @@ import {
 } from './sounds.js';
 import { createScheduler } from './scheduler.js';
 import {
-  BAR, BPM_MAX, BPM_MIN, BPM_STEP, MAX_STEPS, canDouble, clear, copyBeat, copyRow, createHistory, double, isEmpty,
-  LIFT_MAX, isOn, liftAt, longer, shorter, stepCount, surprise, toggle, withBpm, withLift, withSound, withSounds,
+  BAR, BPM_MAX, BPM_MIN, BPM_STEP, LIFT_MAX, MAX_STEPS, MAX_TRACKS, MIN_TRACKS, addRow, canDouble, clear, copyBeat,
+  copyRow, createHistory, double, isEmpty, isOn, liftAt, longer, removeRow, shorter, stepCount, surprise, toggle,
+  trackCount, withBpm, withLift, withSound, withSounds,
 } from './pattern.js';
 import { SLOT_COUNT, loadState, saveState } from './slots.js';
 import { createGrid, padLabel } from './grid.js';
@@ -20,8 +21,6 @@ import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
 import { createHold } from './hold.js';
 import { createNotePanel } from './note.js';
-// More rows (task 84)
-import { MAX_TRACKS, MIN_TRACKS, addRow, removeRow, trackCount } from './pattern.js';
 import { createAddRow, newRowSound, placeAddRow } from './rows.js';
 
 const $ = (id) => document.getElementById(id);
