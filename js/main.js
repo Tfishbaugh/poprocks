@@ -3,8 +3,9 @@ import {
 } from './sounds.js';
 import { createScheduler, stepDuration } from './scheduler.js';
 import {
-  BAR, BPM_MAX, BPM_MIN, BPM_STEP, MAX_STEPS, canDouble, clear, copyBeat, copyRow, createHistory, double, isEmpty,
-  LIFT_MAX, isOn, liftAt, longer, shorter, stepCount, surprise, toggle, withBpm, withLift, withSound, withSounds,
+  BAR, BPM_MAX, BPM_MIN, BPM_STEP, LIFT_MAX, MAX_STEPS, MAX_TRACKS, MIN_TRACKS, addRow, canDouble, clear, copyBeat,
+  copyRow, createHistory, double, isEmpty, isOn, liftAt, longer, removeRow, shorter, stepCount, surprise, toggle,
+  trackCount, withBpm, withLift, withSound, withSounds,
 } from './pattern.js';
 import { SLOT_COUNT, loadState, saveState } from './slots.js';
 import { createGrid, padLabel } from './grid.js';
@@ -22,6 +23,7 @@ import { createHoldPlayer, createNotePreview, noteLift, noteStart } from './hold
 import { createStretch } from './stretch.js';
 import { createHold } from './hold.js';
 import { createNotePanel } from './note.js';
+import { createAddRow, newRowSound, placeAddRow } from './rows.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -170,6 +172,7 @@ function render() {
   const current = beat();
   showKit();
   grid.render(current);
+  renderRows(current); // more rows (task 84)
   renderTools(current);
   document.querySelectorAll('.slot').forEach((button) => {
     button.setAttribute('aria-pressed', String(Number(button.dataset.slot) === state.slot));
@@ -290,6 +293,7 @@ function onSound(track) {
   setMore(false);
   const id = beat().sounds[track];
   rowSession = { before: id, pushed: false };
+  $('row-extra').hidden = trackCount(beat()) <= MIN_TRACKS; // 🗑 Remove row (more rows, task 84)
   rowPicker.open(track, id);
   history.pushState({ poprocks: 'row' }, '');
   engine.play(id);
@@ -316,6 +320,48 @@ function onRowClosed(track) {
   const onAction = () => commit(withSound(beat(), track, before));
   toast(`${emoji} ${label} on row ${track + 1}`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
 }
+
+// ---- More rows (task 84): ➕ Row and 🗑 Remove row ----
+
+const addRowCell = createAddRow(onAddRow);
+
+function renderRows(current) {
+  const full = trackCount(current) >= MAX_TRACKS;
+  placeAddRow($('grid'), addRowCell, trackCount(current));
+  $('add-row-tool').disabled = full;
+  $('add-row-tool').setAttribute('aria-label', full ? 'Add a row: 12 is the most' : 'Add a row');
+}
+
+// ➕ Row: an empty row with a sound not on a row yet. It scrolls into view and plays, so the kid
+// sees and hears what came. One ↩ takes it back.
+function onAddRow() {
+  const before = beat();
+  if (trackCount(before) >= MAX_TRACKS) return;
+  const id = newRowSound(before.sounds);
+  commit(addRow(before, id));
+  grid.nameButton(trackCount(before)).scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (!scheduler?.playing) engine?.play(id);
+  $('sr-status').textContent = `Row ${trackCount(before) + 1} added: ${soundById(id).label}.`;
+}
+
+// 🗑 Remove row, in "Sound for row N". The sheet's close event comes a moment later and ends its
+// visit (with its own ↩ and toast) first; then the row goes, with one ↩ of its own.
+function onRemoveRow() {
+  const track = rowPicker.track;
+  $('row-sheet').addEventListener('close', () => removeTrack(track), { once: true });
+  $('row-sheet').close();
+}
+
+function removeTrack(track) {
+  const before = beat();
+  if (trackCount(before) <= MIN_TRACKS) return;
+  commit(removeRow(before, track));
+  grid.nameButton(Math.min(track, trackCount(beat()) - 1)).focus({ preventScroll: true });
+  withUndo(`🗑 ${soundById(before.sounds[track]).label} row removed.`, before);
+}
+
+$('add-row-tool').addEventListener('click', onAddRow);
+$('remove-row').addEventListener('click', onRemoveRow);
 
 // ---- Longer beats and copy (task 80, lane A) ----
 
@@ -401,16 +447,15 @@ function onHoldNote(note) {
   stretch.hold(note);
 }
 
-// A lift without a slide opens the panel, with ◀ ▶ for every sound and the slider for tuned ones.
-// It keeps clear of the steps the note can grow into.
+// A lift without a slide opens the panel for every sound: ◀ ▶ for its length, and the key slider
+// for a tuned one. It keeps clear of the steps the note can grow into.
 function onLift(note, { moved }) {
   if (moved) stretch.slid();
   if (moved || !note) return endNoteVisit();
   const { track } = note;
   const step = stretch.open(note); // a held note's height is its first step's
-  const label = `${soundAt(track).label}, step ${step + 1}`;
   const target = { ...note, step, box: stretch.room(note) };
-  notePanel.open(target, { lift: liftAt(beat(), track, step), tuned: TUNED.has(beat().sounds[track]), label });
+  notePanel.open(target, { lift: liftAt(beat(), track, step), tuned: TUNED.has(beat().sounds[track]), label: padLabel(soundAt(track), step, 0) });
   history.pushState({ poprocks: 'note' }, '');
 }
 
@@ -435,12 +480,17 @@ function onNoteLift({ track, step }, lift) {
 // they move the note, whose height is its first step's.
 function onLiftKey(track, at, delta) {
   const step = noteStart(beat().rows[track], at);
-  if (step < 0 || !TUNED.has(beat().sounds[track])) return;
+  const tuned = step >= 0 && TUNED.has(beat().sounds[track]);
+  if (!tuned) return say('Only a lit note with a tune goes higher or lower.');
   const lift = liftAt(beat(), track, step) + delta;
   if (Math.abs(lift) > LIFT_MAX) return;
   commit(withLift(beat(), track, step, lift));
   if (!scheduler.playing) engine.play(beat().sounds[track], undefined, step, lift);
-  $('sr-status').textContent = padLabel(soundAt(track), step, lift);
+  say(padLabel(soundAt(track), step, lift));
+}
+
+function say(text) {
+  $('sr-status').textContent = text;
 }
 
 function onNoteClosed(note) {
@@ -818,7 +868,7 @@ const stretch = createStretch({
   beat,
   commit,
   edit: editNote,
-  announce: (text) => { $('sr-status').textContent = text; },
+  announce: say,
   preview: previewNote,
 });
 createHold($('grid'), { onHold: onHoldNote, onMove: (note) => stretch.move(note), onLift, onCancel: endNoteVisit });

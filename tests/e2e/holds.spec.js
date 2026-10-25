@@ -347,3 +347,43 @@ test.describe('stretching with a finger', () => {
     await expect(panel(page)).toBeHidden();
   });
 });
+
+// Task 84, more rows: a beat has up to 12 rows, and every one of them holds.
+test.describe('held notes on rows 9 to 12', () => {
+  // ➕ Row sits after the last name when there's room, and under More when there isn't.
+  async function addRow(page) {
+    if (await page.locator('.add-row').isVisible()) return page.click('.add-row');
+    if (!(await page.locator('#add-row-tool').isVisible())) await page.click('#more');
+    await page.click('#add-row-tool');
+  }
+
+  async function twelveRows(page) {
+    await startApp(page);
+    for (let i = 0; i < 4; i += 1) await addRow(page);
+    await expect(page.locator('.sound')).toHaveCount(12);
+  }
+
+  test('wide: a slide, ◀ ▶ and the bar on row 12', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await twelveRows(page);
+    await mouseSlide(page, pad(page, 11, 2), pad(page, 11, 5), 350);
+    expect(await lit(page, 11)).toEqual([2, 3, 4, 5]);
+    const name = (await page.locator('.sound').nth(11).locator('.lbl').textContent()).trim();
+    await expect(pad(page, 11, 3)).toHaveAttribute('aria-label', `${name}, step 4, held`);
+    expect(await corners(pad(page, 11, 3))).toMatchObject({ left: 0, right: 0 });
+    await mouseHold(page, pad(page, 11, 9));
+    await page.getByRole('button', { name: 'Longer note' }).click();
+    await page.click('#note-done');
+    expect(await lit(page, 11)).toEqual([2, 3, 4, 5, 9, 10]);
+  });
+
+  test('upright: Shift+→ makes a bar down row 10', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await twelveRows(page);
+    await pad(page, 9, 4).focus();
+    await page.keyboard.press('Shift+ArrowRight');
+    await page.keyboard.press('Shift+ArrowRight');
+    expect(await lit(page, 9)).toEqual([4, 5, 6]);
+    expect(await corners(pad(page, 9, 5))).toMatchObject({ top: 0, bottom: 0 });
+  });
+});

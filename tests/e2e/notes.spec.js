@@ -112,6 +112,7 @@ test('the panel opens at the note’s own height, and a note keeps it after a re
   await holdAndLift(page, pad(page, 5, 0));
   await expect(page.locator('#note-slider')).toHaveValue('-1');
   await page.click('#note-done');
+  await expect.poll(() => page.evaluate(() => history.state?.poprocks ?? null), { message: 'the panel’s Back entry is gone' }).toBeNull();
   await page.reload();
   await page.click('#start-btn');
   expect(await lift(page, 5, 0)).toBe('↓1');
@@ -131,6 +132,7 @@ test('Shift+↑ and Shift+↓ move a focused tuned note, one ↩ each; drums don
   await page.keyboard.press('Shift+ArrowUp');
   expect(await lift(page, 0, 0)).toBe('');
   await expect(pad(page, 0, 0), 'the arrow didn’t move focus either').toBeFocused();
+  await expect(page.locator('#sr-status')).toHaveText('Only a lit note with a tune goes higher or lower.');
 });
 
 test('a note can go 4 steps either way, and no further', async ({ page }) => {
@@ -139,9 +141,12 @@ test('a note can go 4 steps either way, and no further', async ({ page }) => {
   expect(await lift(page, 5, 0)).toBe('↑4');
 });
 
+const DARK_SURFACE = 'rgb(34, 27, 49)';
+
 for (const size of [{ width: 360, height: 640 }, { width: 640, height: 360 }, { width: 820, height: 1180 }]) {
-  test(`at ${size.width}×${size.height} the panel sits on screen beside its note`, async ({ page }) => {
+  for (const scheme of ['light', 'dark']) test(`at ${size.width}×${size.height} (${scheme}) the panel sits on screen beside its note`, async ({ page }) => {
     await page.setViewportSize(size);
+    await page.emulateMedia({ colorScheme: scheme });
     await page.reload();
     await page.click('#start-btn');
     const target = pad(page, 5, 6);
@@ -155,5 +160,42 @@ for (const size of [{ width: 360, height: 640 }, { width: 640, height: 360 }, { 
     const slider = await page.locator('#note-slider').boundingBox();
     expect(slider.width).toBeGreaterThanOrEqual(44);
     expect(slider.height).toBeGreaterThan(slider.width);
+    const surface = await page.locator('.note-card').evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(surface === DARK_SURFACE, 'the panel follows the theme').toBe(scheme === 'dark');
   });
 }
+
+test('each stop of the slider plays the note once', async ({ page }) => {
+  await page.evaluate(() => {
+    window.__starts = 0;
+    const start = AudioScheduledSourceNode.prototype.start;
+    AudioScheduledSourceNode.prototype.start = function count(...args) {
+      window.__starts += 1;
+      return start.apply(this, args);
+    };
+  });
+  const starts = () => page.evaluate(() => window.__starts);
+  await holdAndLift(page, pad(page, 5, 0)); // Bass: one oscillator a note
+  const before = await starts();
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(starts).toBe(before + 1);
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(starts).toBe(before + 2);
+  await page.waitForTimeout(300);
+  expect(await starts(), 'once a stop, not twice').toBe(before + 2);
+});
+
+test('a lift copied onto a drum, or kept when a row turns into a drum, isn’t shown', async ({ page }) => {
+  await pad(page, 5, 0).focus();
+  await page.keyboard.press('Shift+ArrowUp');
+  await page.click('#copy');
+  await page.locator('.copy-sound[data-track="5"]').click();
+  await page.locator('.copy-sound[data-track="0"]').click();
+  expect(await lift(page, 0, 0)).toBe('');
+  await expect(pad(page, 0, 0)).toHaveAttribute('aria-label', 'Kick, step 1');
+  await page.locator('.sound[data-track="5"]').click();
+  await page.locator('#row-sheet .row-sound[data-sound="tom"]').click();
+  await page.click('#row-close');
+  expect(await lift(page, 5, 0)).toBe('');
+  await expect(pad(page, 5, 0)).toHaveAttribute('aria-label', 'Tom, step 1');
+});
