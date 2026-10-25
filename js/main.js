@@ -194,10 +194,13 @@ function commit(next) {
   setBeat(next);
 }
 
-// A tapped note plays as the beat will play it: a tuned one for its square (held notes, task 84).
+// A tapped tuned note plays as the beat will play it, for its square (held notes, task 84);
+// a drum is its whole hit, and the next tap doesn't cut it off.
 function onToggle(track, step) {
   commit(toggle(beat(), track, step));
-  if (isOn(beat(), track, step)) previewNote(track, beat().rows[track], step);
+  if (!isOn(beat(), track, step)) return;
+  if (TUNED.has(beat().sounds[track])) return previewNote(track, beat().rows[track], step);
+  if (!scheduler?.playing) engine?.play(beat().sounds[track], undefined, step);
 }
 
 function changeTempo(delta) {

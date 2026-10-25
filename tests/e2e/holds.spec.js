@@ -3,6 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { startApp } from './helpers.js';
+import { FADE, TUNED as TUNED_SET } from '../../js/sounds.js';
 
 const pad = (page, track, step) => page.locator(`.pad[data-track="${track}"][data-step="${step}"]`);
 const lit = (page, track) => page.locator(`.pad.on[data-track="${track}"]`).evaluateAll((pads) => pads.map((p) => Number(p.dataset.step)));
@@ -32,8 +33,7 @@ function lab(page, name, ...args) {
 }
 
 const START = 0.05;
-const FADE = 0.08;
-const TUNED = ['guitar', 'synth', 'chug', 'bass', 'rock-bass', '808', 'riff', 'bell'];
+const TUNED = [...TUNED_SET];
 const stepAt = (n, bpm) => START + (n * 15) / bpm;
 
 test.describe('how held notes sound', () => {
@@ -455,5 +455,37 @@ test.describe('the key slider on a held note', () => {
     await page.click('#note-done');
     await expect(pad(page, 5, 2)).toHaveAttribute('data-lift', '↑2');
     expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+  });
+});
+
+// Travis (PR 3 QC): a tapped square sounds as it will in the beat. Each scheduled stop is logged as
+// how long after the moment it was set.
+test.describe('tapping a square while stopped', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await page.click('#clear');
+    await page.evaluate(() => {
+      window.__stops = [];
+      const stop = AudioScheduledSourceNode.prototype.stop;
+      AudioScheduledSourceNode.prototype.stop = function spy(when = 0) {
+        window.__stops.push(when - this.context.currentTime);
+        return stop.call(this, when);
+      };
+    });
+  });
+
+  const stops = (page) => page.evaluate(() => window.__stops);
+
+  test('a tuned note plays for its square, then fades', async ({ page }) => {
+    await pad(page, 5, 3).click(); // Bass; at 100 BPM a square is 0.15 s
+    await expect.poll(async () => (await stops(page)).length).toBeGreaterThan(0);
+    const soonest = Math.min(...(await stops(page)));
+    expect(Math.abs(soonest - (0.02 + 0.15 + FADE)), `stops ${soonest.toFixed(3)} s after the tap`).toBeLessThan(0.03);
+  });
+
+  test('a drum is its whole hit', async ({ page }) => {
+    await pad(page, 0, 3).click(); // Kick: its body rings 0.5 s
+    await expect.poll(async () => Math.max(0, ...(await stops(page)))).toBeGreaterThan(0.45);
   });
 });

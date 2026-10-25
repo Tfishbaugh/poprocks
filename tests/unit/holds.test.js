@@ -126,6 +126,8 @@ test('each step’s cue: start, keep, play again on a chord change, end', () => 
   assert.equal(cue(row, 9, true, true), 'keep');
   assert.equal(cue(row, 9, true, false), 'hold', 'a hold with nothing ringing (stretched while playing) starts one');
   assert.equal(cue('x.', 0, true, false), 'hold', 'a one-step tuned note lasts its square too');
+  assert.equal(cue('xx', 1, true, true), 'hold', 'a note right after a ringing one starts afresh, never merges');
+  assert.equal(cue(row, 7, true, true), 'hold');
   assert.equal(cue(row, 1, false, false), 'hit', 'a drum rolls');
   assert.equal(cue(row, 2, false, false), 'off');
 });
