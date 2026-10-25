@@ -309,7 +309,7 @@ button:disabled { cursor: default; opacity: 0.4; }
   }
 }
 
-/* ---- Longer beats: ❮, the map, ❯ and ➕ above the grid (task 80, lane A) ---- */
+/* ---- Longer beats: ❮, the map, ❯, ➖ and ➕ above the grid (task 80, lane A) ---- */
 
 .strip-nav {
   display: flex;
@@ -501,7 +501,7 @@ button:disabled { cursor: default; opacity: 0.4; }
   }
 
   .strip-nav { grid-area: nav; padding: 6px 8px 0 0; gap: 4px; }
-  .strip-map, .strip-nav .longer { display: none; }
+  .strip-map, .strip-nav .size-btn { display: none; }
   .nav-btn { width: 44px; min-width: 44px; min-height: 44px; padding: 2px; }
   .tools .rail-only { display: inline-flex; }
 
@@ -799,6 +799,10 @@ button:disabled { cursor: default; opacity: 0.4; }
 }
 
 .toast-action { background: var(--bg); color: var(--text); }
+
+/* Taps go through the toast; its Undo catches them only after its first 0.8 s (js/main.js). */
+.toast, .toast.fresh .toast-action { pointer-events: none; }
+.toast-action { pointer-events: auto; }
 
 /* ---- Tour (js/tour.js): a lit control, everything else dimmed, and a card beside it ---- */
 

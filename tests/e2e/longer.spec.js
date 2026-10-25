@@ -1,8 +1,8 @@
-// Longer beats (task 80, pick 1c): one long strip of up to 64 steps, ➕ and ✂️, ❮ ❯, the map,
+// Longer beats (task 80, pick 1c): one long strip of up to 64 steps, ➕ and ➖, ❮ ❯, the map,
 // and a playhead that follows without ever moving the grid from under a finger.
 
 import { test, expect } from '@playwright/test';
-import { openCamera, startApp } from './helpers.js';
+import { download, openCamera, record, startApp } from './helpers.js';
 
 const pad = (page, track, step) => page.locator(`.pad[data-track="${track}"][data-step="${step}"]`);
 const padCount = (page) => page.locator('.pad').count();
@@ -56,7 +56,7 @@ test('➕ makes the beat 16 steps longer, up to 64, and shows the new part', asy
   await expect(pad(page, 7, 63)).toHaveAttribute('aria-label', 'Boing, step 64');
 });
 
-test('✂️ Shorter takes 16 steps away, and Undo brings them back', async ({ page }) => {
+test('➖ Shorter takes 16 steps away, and Undo brings them back', async ({ page }) => {
   await startApp(page);
   await expect(page.locator('#shorter')).toBeDisabled();
   await page.click('#longer');
@@ -244,10 +244,151 @@ test('on a wide screen ❮ ❯ land each 16 steps right after the sound names', 
   await expect.poll(() => scrolled(page)).toBe(0);
 });
 
-test('✂️ Shorter shows where the beat now ends', async ({ page }) => {
+test('➖ Shorter shows where the beat now ends', async ({ page }) => {
   await startApp(page);
   await makeLong(page, 3);
   await page.locator('#grid-wrap').evaluate((el) => { el.scrollLeft = 0; });
   await page.click('#shorter');
   await expect.poll(() => uncovered(pad(page, 0, 47))).toBe(true);
+});
+
+// ➖ Shorter (task 84, pick 7a): beside ➕, the same size, so it's found without More.
+const box = (page, selector) => page.locator(selector).boundingBox();
+
+async function sideBySide(page, left, right) {
+  const [a, b] = [await box(page, left), await box(page, right)];
+  const gap = b.x - (a.x + a.width);
+  return {
+    sameRow: Math.abs(a.y - b.y) < 2 && Math.abs(a.height - b.height) < 2,
+    nextTo: gap >= 0 && gap <= 12,
+    sameSize: Math.abs(a.width - b.width) < 8,
+    big: Math.min(a.width, b.width, a.height, b.height) >= 48,
+  };
+}
+
+const ALL_GOOD = { sameRow: true, nextTo: true, sameSize: true, big: true };
+
+for (const size of [{ width: 360, height: 640 }, { width: 820, height: 1180 }, { width: 1280, height: 800 }]) {
+  test(`at ${size.width}×${size.height} ➖ Shorter sits beside ➕ Longer above the grid`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    await expect(page.locator('#strip-nav #shorter')).toBeVisible();
+    expect(await sideBySide(page, '#shorter', '#longer')).toEqual(ALL_GOOD);
+    expect((await box(page, '#strip-map')).width, 'the map still shows').toBeGreaterThan(40);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.locator('#shorter-tool'), 'no second Shorter in the tools').toBeHidden();
+    await expect(page.locator('#shorter .ico')).toHaveText('➖');
+    await expect(page.locator('#shorter .lbl')).toHaveText('Shorter');
+  });
+}
+
+test('on a phone on its side, ➖ and ➕ fold into More, side by side', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 360 });
+  await startApp(page);
+  await expect(page.locator('#shorter')).toBeHidden();
+  await expect(page.locator('#longer')).toBeHidden();
+  await page.click('#more');
+  await expect(page.locator('#shorter-tool')).toBeDisabled();
+  expect(await sideBySide(page, '#shorter-tool', '#longer-tool')).toEqual(ALL_GOOD);
+  await page.click('#longer-tool');
+  await page.click('#shorter-tool');
+  expect(await padCount(page)).toBe(128);
+  await expect(page.locator('#shorter-tool')).toBeDisabled();
+});
+
+// A toast must never sit on ➖ (a quick second tap would hit its Undo), and a tap a kid meant for
+// what's under a toast's Undo, right after it shows, must reach that and not Undo.
+const SIZES = [{ width: 360, height: 640 }, { width: 820, height: 1180 }, { width: 1280, height: 800 }, { width: 640, height: 360 }];
+const apart = (a, b) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+const litPads = (page) => page.locator('.pad.on').count();
+
+async function tool(page, id) {
+  if (!(await page.locator(`#${id}`).isVisible())) await page.click('#more');
+  await page.click(`#${id}`);
+}
+
+for (const size of SIZES) {
+  test(`at ${size.width}×${size.height} a second ➖ makes it shorter again, not Undo`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    const folded = !(await page.locator('#shorter').isVisible());
+    const shorterBtn = page.locator(folded ? '#shorter-tool' : '#shorter');
+    if (folded) await page.click('#more');
+    await page.click(folded ? '#longer-tool' : '#longer');
+    await page.click(folded ? '#longer-tool' : '#longer');
+    await shorterBtn.click();
+    await expect(page.locator('#toast:not([hidden])')).toContainText('Made shorter');
+    await page.waitForTimeout(1000); // past the toast's first 0.8 s, when its Undo starts catching taps
+    expect(apart(await page.locator('#toast').boundingBox(), await shorterBtn.boundingBox()), 'the toast is clear of ➖').toBe(true);
+    await shorterBtn.click({ timeout: 1000 });
+    expect(await padCount(page)).toBe(128);
+  });
+
+  test(`at ${size.width}×${size.height} a tap right after Clear reaches what's under Undo, and Undo still works`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startApp(page);
+    const before = await litPads(page);
+    await tool(page, 'clear');
+    await expect(page.locator('#toast:not([hidden])')).toContainText('Beat cleared');
+    const undo = await page.locator('#toast-action').boundingBox();
+    await page.mouse.click(undo.x + undo.width / 2, undo.y + undo.height / 2);
+    expect(await litPads(page), 'the quick tap was not Undo').toBeLessThan(2);
+    const words = await page.locator('#toast-msg').boundingBox();
+    const at = [words.x + 4, words.y + words.height / 2];
+    const caught = await page.evaluate(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('#toast')), at);
+    expect(caught, 'taps go through the toast’s words').toBe(false);
+    await page.click('#toast-action');
+    expect(await litPads(page)).toBe(before);
+  });
+}
+
+async function clearOfSizeButtons(page) {
+  const toastBox = await page.locator('#toast').boundingBox();
+  const boxes = [await page.locator('#shorter').boundingBox(), await page.locator('#longer').boundingBox()];
+  return boxes.every((box) => apart(toastBox, box));
+}
+
+test('a toast still up from Watch moves off ➖ and ➕ when Beats comes back', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  await download(page, testInfo);
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Saved');
+  await page.click('#watch-back');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Saved');
+  expect(await clearOfSizeButtons(page)).toBe(true);
+});
+
+test('a toast moves off ➖ and ➕ when a phone turns upright', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 360 });
+  await startApp(page);
+  await page.click('#more');
+  await page.click('#longer-tool');
+  await page.click('#shorter-tool');
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Made shorter');
+  await page.setViewportSize({ width: 360, height: 640 });
+  await expect.poll(() => clearOfSizeButtons(page)).toBe(true);
+});
+
+test('➖ greys out at 16 steps, and one ↩ undoes it', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await startApp(page);
+  await expect(page.locator('#shorter')).toBeDisabled();
+  await makeLong(page, 2);
+  await pad(page, 6, 40).click();
+  await expect(pad(page, 6, 40)).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#shorter');
+  await expect(page.locator('#shorter')).toBeEnabled();
+  expect(await padCount(page)).toBe(256);
+  await page.click('#shorter');
+  await expect(page.locator('#shorter')).toBeDisabled();
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Made shorter');
+  await page.click('#more');
+  await page.click('#undo');
+  expect(await padCount(page)).toBe(256);
+  await page.click('#undo');
+  expect(await padCount(page)).toBe(384);
+  await expect(pad(page, 6, 40)).toHaveAttribute('aria-pressed', 'true');
 });

@@ -44,7 +44,7 @@
       <button id="sounds" class="btn kit-btn" type="button" aria-haspopup="dialog" aria-label="Sounds: Party"><span class="ico" aria-hidden="true">🎉</span><span class="lbl">Party</span></button>
     </header>
 
-    <!-- Longer beats: move along the strip, see where you are, make it longer. -->
+    <!-- Longer beats: move along the strip, see where you are, make it shorter or longer. -->
     <div id="strip-nav" class="strip-nav" role="group" aria-label="Move along the beat">
       <button id="strip-back" class="btn tool nav-btn" type="button" aria-controls="grid-wrap"><span class="ico" aria-hidden="true">❮</span><span class="lbl">Back</span></button>
       <div id="strip-map" class="strip-map" aria-hidden="true">
@@ -52,7 +52,8 @@
         <div id="strip-dot" class="strip-dot" hidden></div>
       </div>
       <button id="strip-next" class="btn tool nav-btn" type="button" aria-controls="grid-wrap"><span class="ico" aria-hidden="true">❯</span><span class="lbl">Next</span></button>
-      <button id="longer" class="btn tool longer" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
+      <button id="shorter" class="btn tool size-btn" type="button"><span class="ico" aria-hidden="true">➖</span><span class="lbl">Shorter</span></button>
+      <button id="longer" class="btn tool size-btn" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
     </div>
 
     <div class="grid-wrap" id="grid-wrap">
@@ -73,7 +74,7 @@
             <button id="undo" class="btn tool" type="button"><span class="ico" aria-hidden="true">↩</span><span class="lbl">Undo</span></button>
             <button id="double" class="btn tool" type="button"><span class="ico" aria-hidden="true">×2</span><span class="lbl">Double</span></button>
             <button id="copy" class="btn tool" type="button" aria-haspopup="dialog"><span class="ico" aria-hidden="true">📋</span><span class="lbl">Copy</span></button>
-            <button id="shorter" class="btn tool" type="button"><span class="ico" aria-hidden="true">✂️</span><span class="lbl">Shorter</span></button>
+            <button id="shorter-tool" class="btn tool rail-only" type="button"><span class="ico" aria-hidden="true">➖</span><span class="lbl">Shorter</span></button>
             <button id="longer-tool" class="btn tool rail-only" type="button"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Longer</span></button>
           </div>
           <!-- Sound kits (task 80, lane B): on a phone on its side, Sounds lives here, not in the rail. -->

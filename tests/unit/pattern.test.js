@@ -117,7 +117,7 @@ test('➕ longer adds 16 steps, a copy of the last 16, up to 64', () => {
   assert.ok(isValidBeat(beat));
 });
 
-test('✂️ shorter takes the last 16 steps away, never below 16', () => {
+test('➖ shorter takes the last 16 steps away, never below 16', () => {
   const long = longer(toggle(emptyBeat(), 2, 3));
   const beat = shorter(toggle(long, 2, 20));
   assert.equal(stepCount(beat), 16);
