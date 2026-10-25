@@ -20,6 +20,9 @@ import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
 import { createHold } from './hold.js';
 import { createNotePanel } from './note.js';
+// More rows (task 84)
+import { MAX_TRACKS, MIN_TRACKS, addRow, removeRow, trackCount } from './pattern.js';
+import { createAddRow, newRowSound, placeAddRow } from './rows.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['start', 'beats', 'record', 'watch'];
@@ -151,6 +154,7 @@ function render() {
   const current = beat();
   showKit();
   grid.render(current);
+  renderRows(current); // more rows (task 84)
   renderTools(current);
   document.querySelectorAll('.slot').forEach((button) => {
     button.setAttribute('aria-pressed', String(Number(button.dataset.slot) === state.slot));
@@ -271,6 +275,7 @@ function onSound(track) {
   setMore(false);
   const id = beat().sounds[track];
   rowSession = { before: id, pushed: false };
+  $('row-extra').hidden = trackCount(beat()) <= MIN_TRACKS; // 🗑 Remove row (more rows, task 84)
   rowPicker.open(track, id);
   history.pushState({ poprocks: 'row' }, '');
   engine.play(id);
@@ -297,6 +302,46 @@ function onRowClosed(track) {
   const onAction = () => commit(withSound(beat(), track, before));
   toast(`${emoji} ${label} on row ${track + 1}`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
 }
+
+// ---- More rows (task 84): ➕ Row and 🗑 Remove row ----
+
+const addRowCell = createAddRow(onAddRow);
+
+function renderRows(current) {
+  placeAddRow($('grid'), addRowCell, trackCount(current));
+  $('add-row-tool').disabled = trackCount(current) >= MAX_TRACKS;
+}
+
+// ➕ Row: an empty row with a sound not on a row yet. It scrolls into view and plays, so the kid
+// sees and hears what came. One ↩ takes it back.
+function onAddRow() {
+  const before = beat();
+  if (trackCount(before) >= MAX_TRACKS) return;
+  const id = newRowSound(before.sounds);
+  commit(addRow(before, id));
+  grid.nameButton(trackCount(before)).scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (!scheduler?.playing) engine?.play(id);
+  $('sr-status').textContent = `Row ${trackCount(before) + 1} added: ${soundById(id).label}.`;
+}
+
+// 🗑 Remove row, in "Sound for row N". The sheet's close event comes a moment later and ends its
+// visit (with its own ↩ and toast) first; then the row goes, with one ↩ of its own.
+function onRemoveRow() {
+  const track = rowPicker.track;
+  $('row-sheet').addEventListener('close', () => removeTrack(track), { once: true });
+  $('row-sheet').close();
+}
+
+function removeTrack(track) {
+  const before = beat();
+  if (trackCount(before) <= MIN_TRACKS) return;
+  commit(removeRow(before, track));
+  grid.nameButton(Math.min(track, trackCount(beat()) - 1)).focus({ preventScroll: true });
+  withUndo(`🗑 ${soundById(before.sounds[track]).label} row removed.`, before);
+}
+
+$('add-row-tool').addEventListener('click', onAddRow);
+$('remove-row').addEventListener('click', onRemoveRow);
 
 // ---- Longer beats and copy (task 80, lane A) ----
 

@@ -113,6 +113,22 @@ export function withLift(beat, track, step, lift) {
   return { ...beat, pitch: beat.pitch.map((lane, i) => (i === track ? setAt(lane, step, clamped) : lane)) };
 }
 
+// ---- More rows (task 84): ➕ Row and 🗑 Remove row, from 8 to 12 rows ----
+
+// ➕ Row: a new empty row at the bottom that plays `id`.
+export function addRow(beat, id) {
+  if (trackCount(beat) >= MAX_TRACKS) return beat;
+  const steps = stepCount(beat);
+  return { ...beat, rows: [...beat.rows, '.'.repeat(steps)], sounds: [...beat.sounds, id], pitch: [...beat.pitch, flat(steps)] };
+}
+
+// 🗑 Remove row: its notes, sound and pitch go, and the rows below move up.
+export function removeRow(beat, track) {
+  if (trackCount(beat) <= MIN_TRACKS || !beat.rows[track]) return beat;
+  const keep = (_, i) => i !== track;
+  return { ...beat, rows: beat.rows.filter(keep), sounds: beat.sounds.filter(keep), pitch: beat.pitch.filter(keep) };
+}
+
 // ---- Longer, shorter, ×2 and copy: rows and their pitch change together ----
 
 // `change` gets a row (a string) or its pitch (an array), so it may use only what both have.

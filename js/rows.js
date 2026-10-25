@@ -1,16 +1,14 @@
 // ➕ Row and 🗑 Remove row (task 84, more rows): a beat has 8 to 12 rows.
 
-import { KITS } from './sounds.js';
+import { KITS, kitById, soundById } from './sounds.js';
 import { MAX_TRACKS } from './pattern.js';
 import { el } from './dom.js';
-
-const kitOf = (id) => KITS.find((kit) => kit.sounds.some((sound) => sound.id === id)) ?? KITS[0];
 
 // A new row's sound: the first one not on a row yet, from the last row's kit, then the next kits.
 // Notes (a kit's second line of 4) come before any drums: a new row is most fun as a new tune,
 // so 4 more rows on a Party beat bring Rock's Chord, Chug, Bass and Riff.
 export function newRowSound(sounds) {
-  const start = KITS.indexOf(kitOf(sounds.at(-1)));
+  const start = KITS.indexOf(kitById(soundById(sounds.at(-1)).kit));
   const kits = KITS.map((_, i) => KITS[(start + i) % KITS.length]);
   const order = [...kits.flatMap((kit) => kit.sounds.slice(4)), ...kits.flatMap((kit) => kit.sounds.slice(0, 4))];
   return (order.find((sound) => !sounds.includes(sound.id)) ?? order[0]).id;
