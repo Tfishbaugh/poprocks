@@ -277,8 +277,8 @@ test.describe('how the kits sound', () => {
     }
   });
 
-  // Task 84: a mix (Rock's drums, K-pop's notes) on the starters is about as loud as Party: as close
-  // on average as a kit is. The loudest starter, Boom Clap, puts Crash on every other step (+2.6 dB).
+  // Task 84: a mix (Rock's drums, K-pop's notes) on the starters is as close to Party as a kit must be.
+  // Tom and Crash were turned down for it: on the busy drum rows they were far louder than Clap and Hat.
   test('a mixed beat is about as loud as Party', async ({ page }) => {
     const starters = await page.evaluate(async () => (await import(new URL('js/pattern.js', location.href).href)).STARTERS);
     const mix = ['rock-kick', 'rock-snare', 'tom', 'crash', '808', 'bell', 'synth', 'hey'];
@@ -288,7 +288,7 @@ test.describe('how the kits sound', () => {
     }
     const mean = diffs.reduce((sum, d) => sum + d, 0) / diffs.length;
     expect(Math.abs(mean), `on average ${mean.toFixed(1)} dB from Party`).toBeLessThan(1.5);
-    diffs.forEach((d, i) => expect(Math.abs(d), `starter ${i}: ${d.toFixed(1)} dB`).toBeLessThan(3));
+    diffs.forEach((d, i) => expect(Math.abs(d), `starter ${i}: ${d.toFixed(1)} dB`).toBeLessThan(2.5));
   });
 
   // Task 84: the key slider moves a note along E minor (E F# G A B C D).
