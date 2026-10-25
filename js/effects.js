@@ -301,7 +301,7 @@ export function effectsSupported(format, env = globalThis) {
 }
 
 // `audio()` gives the app's AudioContext, `onMade(video, message)` takes the new video,
-// and `toast(message)` tells the kid when something didn't work.
+// and `toast(message, { retry })` tells the kid when something didn't work (retry: to try again).
 export function createEffects({ audio, format, onMade, toast }) {
   const watch = $('watch');
   const playback = $('playback');
@@ -602,7 +602,7 @@ export function createEffects({ audio, format, onMade, toast }) {
     setMode('fx');
     showVideo(base);
     renderChoices();
-    toast(message);
+    toast(message, { retry: message === FAILED });
   }
 
   function exit() {

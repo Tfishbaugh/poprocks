@@ -32,6 +32,9 @@ const FOCUS = { start: 'start-btn', beats: 'play', record: 'rec-close', watch: '
 const RING = 2 * Math.PI * 54;
 const FOLLOW_PAUSE_MS = 8000;
 const TOAST_GRACE_MS = 800;
+// A toast stays 2.5 s, or 4 s when it asks for something (Undo, Try again). ↩ still undoes after it goes.
+const NOTE_MS = 2500;
+const ASK_MS = 4000;
 
 function localStore() {
   try {
@@ -121,27 +124,31 @@ function placeToast() {
   if (under) node.style.top = `${$('strip-nav').getBoundingClientRect().bottom + 8}px`;
 }
 
-// Taps go through a toast to what's under it; only its Undo catches them, and not in its first
-// 0.8 s, so a tap a kid already meant for a pad or a name never lands on Undo.
-function toast(message, { action = '', ms = 3000, onAction = null, onEnd = null, slot = -1 } = {}) {
+// Taps go through a toast to what's under it; only its Undo and ✕ catch them, and not in its first
+// 0.8 s, so a tap a kid already meant for a pad or a name never lands on them.
+function toast(message, { action = '', retry = false, ms = action || retry ? ASK_MS : NOTE_MS, close = true, onAction = null, onEnd = null, slot = -1 } = {}) {
   closeToast();
   $('toast-msg').textContent = message;
   $('toast-action').textContent = action;
   $('toast-action').hidden = !action;
+  $('toast-close').hidden = !close;
   $('toast').classList.add('fresh');
   $('toast').hidden = false;
   placeToast();
   const settle = setTimeout(() => $('toast').classList.remove('fresh'), TOAST_GRACE_MS);
-  toastState = { onAction, onEnd, slot, settle, timer: setTimeout(closeToast, ms) };
+  toastState = { close, onAction, onEnd, slot, settle, timer: setTimeout(closeToast, ms) };
 }
 
+// ✕, Escape and the timeout all end a toast here. A keyboard's focus on it goes back to the screen.
 function closeToast() {
   if (!toastState) return;
   const { onEnd, settle, timer } = toastState;
   toastState = null;
   clearTimeout(settle);
   clearTimeout(timer);
+  const focused = $('toast').contains(document.activeElement);
   $('toast').hidden = true;
+  if (focused) $(FOCUS[screen]).focus({ preventScroll: true });
   onEnd?.();
 }
 
@@ -213,8 +220,8 @@ function undo() {
 }
 
 // A toast whose Undo brings back exactly `before`, even after another tap.
-function withUndo(message, before, ms = 6000) {
-  toast(message, { action: 'Undo', ms, onAction: () => commit(before), slot: state.slot });
+function withUndo(message, before) {
+  toast(message, { action: 'Undo', onAction: () => commit(before), slot: state.slot });
 }
 
 function onClear() {
@@ -288,7 +295,7 @@ function onKitsClosed() {
   if (sameSounds(before, beat().sounds)) return undo();
   const { emoji, label } = kitOf(beat().sounds) ?? MIX;
   const onAction = () => commit(withSounds(beat(), before));
-  toast(`${emoji} ${label} sounds`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
+  toast(`${emoji} ${label} sounds`, { action: 'Undo', onAction, slot: state.slot });
 }
 
 // A tap on a row's name: "Sound for row N", which plays the row's sound as it opens.
@@ -322,7 +329,7 @@ function onRowClosed(track) {
   if (before === beat().sounds[track]) return undo();
   const { emoji, label } = soundAt(track);
   const onAction = () => commit(withSound(beat(), track, before));
-  toast(`${emoji} ${label} on row ${track + 1}`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
+  toast(`${emoji} ${label} on row ${track + 1}`, { action: 'Undo', onAction, slot: state.slot });
 }
 
 // ---- More rows (task 84): ➕ Row and 🗑 Remove row ----
@@ -411,7 +418,7 @@ function onCopyBeat(target) {
   state.slot = target;
   const before = beat();
   commit(copy);
-  withUndo(`Copied! Now on beat ${target + 1}.`, before, 10_000);
+  withUndo(`Copied! Now on beat ${target + 1}.`, before);
 }
 
 function onCopyRow(from, to) {
@@ -790,9 +797,10 @@ function showWatch() {
   tourOnce('watch');
 }
 
+// A message here is a "Try again", so it stays as long as an Undo.
 function backToBeats(message) {
   show('beats');
-  if (message) toast(message);
+  if (message) toast(message, { retry: true });
 }
 
 function onDelete() {
@@ -802,7 +810,8 @@ function onDelete() {
   $('playback').load();
   setHasVideo(false);
   backToBeats();
-  toast('Video deleted.', { action: 'Undo', ms: 10_000, onAction: undoDelete, onEnd: forgetDeleted });
+  // A deleted video can't be made again: its Undo stays longer, with no ✕ to lose it by.
+  toast('Video deleted.', { action: 'Undo', ms: 10_000, close: false, onAction: undoDelete, onEnd: forgetDeleted });
 }
 
 function undoDelete() {
@@ -829,7 +838,7 @@ function useVideo(next, message) {
     dropCopy(next);
     showWatch();
   };
-  toast(message, { action: 'Undo', ms: 10_000, onAction: undoVideo, onEnd: () => dropCopy(before) });
+  toast(message, { action: 'Undo', onAction: undoVideo, onEnd: () => dropCopy(before) });
 }
 
 async function onSave() {
@@ -840,19 +849,23 @@ async function onSave() {
     if (result === 'downloaded') toast('Saved to Downloads ✓');
     if (result === 'shared') toast('Done ✓');
   } catch {
-    toast('Couldn’t save. Try again.');
+    toast('Couldn’t save. Try again.', { retry: true });
   }
 }
 
 // ---- Keys, lifecycle, wiring ----
 
+// Escape closes what's on top: More, then a toast with a ✕ (unless a sheet or panel covers it), then the rest.
 function onKeydown(event) {
   if (event.key === 'Escape' && isMoreOpen()) return setMore(false);
+  if (event.key === 'Escape' && toastState?.close && !covered()) return closeToast();
   if (event.key === 'Escape') return onBack();
   if (event.key !== ' ' || event.target !== document.body || screen !== 'beats') return;
   event.preventDefault();
   togglePlay();
 }
+
+const covered = () => copySheet.isOpen || Boolean(document.querySelector('dialog[open]'));
 
 // A mouse click never leaves focus on a button, so on a laptop Space keeps meaning Play.
 // Touch is left alone: its taps don't set keyboard focus anyway.
@@ -930,6 +943,7 @@ const CLICKS = {
   // An effect's Undo toast would swap the video under the open Effects, so it ends here.
   'watch-fx': () => { closeToast(); effects.open(lastVideo); },
   'toast-action': onToastAction,
+  'toast-close': closeToast,
   sounds: openKits,
   'sounds-tool': openKits,
   longer: onLonger,
