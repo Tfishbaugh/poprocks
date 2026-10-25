@@ -1,5 +1,6 @@
-// The Sounds picker: a big card for each kit. A tap switches the beat's sounds at once and
-// plays a little preview; the picker stays open so kids can try them all.
+// The Sounds picker: a big card for each kit. A tap puts the kit's sounds on every row at once
+// and plays a little preview; the picker stays open so kids can try them all. With a mix of
+// kits (task 84) no card is lit.
 
 import { KITS, SAMPLES } from './sounds.js';
 import { el } from './dom.js';
@@ -48,33 +49,11 @@ export function createKitPicker(dialog, { onPick, onClose }) {
   dialog.addEventListener('close', onClose);
 
   return {
+    // `id` is null for a mix: no card is lit, and focus starts on the first.
     open(id) {
       mark(id);
       dialog.showModal();
-      cards.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      (cards.querySelector('[aria-pressed="true"]') ?? cards.firstChild).focus({ preventScroll: true });
     },
   };
-}
-
-function labelSounds(root, sounds) {
-  root.querySelectorAll('.sound').forEach((button) => {
-    const sound = sounds[button.dataset.track];
-    button.querySelector('.ico').textContent = sound.emoji;
-    button.querySelector('.lbl').textContent = sound.label;
-    button.setAttribute('aria-label', `${sound.label} sound`);
-  });
-}
-
-// A pad is named like "Kick, step 3": only the part before the comma changes.
-function labelPads(root, sounds) {
-  root.querySelectorAll('.pad').forEach((pad) => {
-    const name = pad.getAttribute('aria-label');
-    pad.setAttribute('aria-label', sounds[pad.dataset.track].label + name.slice(name.indexOf(',')));
-  });
-}
-
-// Puts a kit's pictures and names on the grid that's already there.
-export function labelGrid(root, sounds) {
-  labelSounds(root, sounds);
-  labelPads(root, sounds);
 }

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SLOT_COUNT, STORAGE_KEY, defaultState, loadState, saveState } from '../../js/slots.js';
-import { STARTERS, emptyBeat, isEmpty, toggle, withBpm } from '../../js/pattern.js';
+import { OLD_KEY, SLOT_COUNT, STORAGE_KEY, defaultState, loadState, saveState } from '../../js/slots.js';
+import { DEFAULT_SOUNDS, STARTERS, emptyBeat, isEmpty, toggle, withBpm, withLift, withSound } from '../../js/pattern.js';
+import { kitById } from '../../js/sounds.js';
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -71,7 +72,7 @@ test('extra fields in storage are dropped', () => {
   const state = defaultState();
   state.slots[0] = { ...state.slots[0], evil: '<script>' };
   const loaded = loadState(memoryStorage({ [STORAGE_KEY]: JSON.stringify(state) }));
-  assert.deepEqual(Object.keys(loaded.slots[0]).sort(), ['bpm', 'kit', 'rows']);
+  assert.deepEqual(Object.keys(loaded.slots[0]).sort(), ['bpm', 'pitch', 'rows', 'sounds']);
 });
 
 test('storage that throws (private mode, blocked) never breaks the app', () => {
@@ -85,10 +86,10 @@ test('storage that throws (private mode, blocked) never breaks the app', () => {
   assert.equal(saveState(null, defaultState()), false);
 });
 
-test('a 64-step beat with a kit saves and loads', () => {
+test('a 64-step beat with its own sounds and lifts saves and loads', () => {
   const storage = memoryStorage();
   const state = defaultState();
-  state.slots[2] = { bpm: 140, rows: emptyBeat(140, 64).rows.map((r, i) => (i === 0 ? 'x'.repeat(64) : r)), kit: 'rock' };
+  state.slots[2] = withLift(withSound(toggle(emptyBeat(140, 64), 5, 60), 5, 'riff'), 5, 60, -3);
   saveState(storage, state);
   assert.deepEqual(loadState(storage).slots[2], state.slots[2]);
 });
@@ -99,4 +100,46 @@ test('a saved beat with a broken length falls back for that slot only', () => {
   const loaded = loadState(memoryStorage({ [STORAGE_KEY]: raw }));
   assert.deepEqual(loaded.slots[1], emptyBeat());
   assert.deepEqual(loaded.slots[0], state.slots[0]);
+});
+
+// ---- Saves move to poprocks.v2 (task 84) ----
+
+const v1 = (slots) => JSON.stringify({ slot: 0, slots });
+const ids = (id) => kitById(id).sounds.map((sound) => sound.id);
+const oldBeat = (kit) => ({ bpm: 100, rows: emptyBeat().rows.map((r, i) => (i === 1 ? 'x'.repeat(16) : r)), kit });
+
+test('v1 beats load once from the old key, each kit as its 8 sounds', () => {
+  const storage = memoryStorage({ [OLD_KEY]: v1([oldBeat('rock'), oldBeat('kpop'), oldBeat('party'), { bpm: 90, rows: emptyBeat().rows }]) });
+  const loaded = loadState(storage);
+  assert.deepEqual(loaded.slots.map((beat) => beat.sounds), [ids('rock'), ids('kpop'), ids('party'), ids('party')]);
+  assert.equal(loaded.slots[0].rows[1], 'x'.repeat(16));
+  assert.deepEqual(loaded.slots[0].pitch, emptyBeat().pitch, 'old notes play as written');
+});
+
+test('an unknown kit or sound gets that row’s Party sound', () => {
+  const unknown = { ...oldBeat('disco') };
+  const odd = { ...oldBeat(undefined), sounds: [...ids('rock').slice(0, 7), 'theremin'] };
+  const loaded = loadState(memoryStorage({ [STORAGE_KEY]: v1([unknown, odd]) }));
+  assert.deepEqual(loaded.slots[0].sounds, DEFAULT_SOUNDS);
+  assert.deepEqual(loaded.slots[1].sounds, [...ids('rock').slice(0, 7), 'boing']);
+});
+
+test('saving writes v2 and leaves v1 for an old cached app; v2 wins when both are there', () => {
+  const old = v1([oldBeat('rock')]);
+  const storage = memoryStorage({ [OLD_KEY]: old });
+  const state = loadState(storage);
+  state.slots[0] = withSound(state.slots[0], 0, 'hey');
+  saveState(storage, state);
+  assert.equal(STORAGE_KEY, 'poprocks.v2');
+  assert.equal(storage.data.get(OLD_KEY), old);
+  assert.equal(loadState(storage).slots[0].sounds[0], 'hey');
+});
+
+test('a beat of 12 rows saves and loads', () => {
+  const storage = memoryStorage();
+  const state = defaultState();
+  const base = emptyBeat();
+  state.slots[1] = { ...base, rows: [...base.rows, ...base.rows.slice(0, 4)], sounds: [...base.sounds, 'riff', 'hey', 'bell', 'tom'], pitch: [...base.pitch, ...base.pitch.slice(0, 4)] };
+  saveState(storage, state);
+  assert.deepEqual(loadState(storage).slots[1], state.slots[1]);
 });
