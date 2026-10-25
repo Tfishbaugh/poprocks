@@ -225,7 +225,7 @@ test('the More tools close on a tap elsewhere and on Escape', async ({ page }) =
     await expect(page.locator('#surprise')).toBeVisible();
     await page.click('#faster');
     await expect(page.locator('#surprise'), 'tapping a tool keeps them open').toBeVisible();
-    await page.locator('.sound').first().click();
+    await page.locator('.pad').nth(1).click();
     await expect(page.locator('#surprise')).toBeHidden();
     await expect(page.locator('#more')).toHaveAttribute('aria-expanded', 'false');
     await page.click('#more');
