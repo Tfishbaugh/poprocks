@@ -194,9 +194,10 @@ function commit(next) {
   setBeat(next);
 }
 
+// A tapped note plays as the beat will play it: a tuned one for its square (held notes, task 84).
 function onToggle(track, step) {
   commit(toggle(beat(), track, step));
-  if (!scheduler?.playing && isOn(beat(), track, step)) engine?.play(beat().sounds[track], undefined, step);
+  if (isOn(beat(), track, step)) previewNote(track, beat().rows[track], step);
 }
 
 function changeTempo(delta) {

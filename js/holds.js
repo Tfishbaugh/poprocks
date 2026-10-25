@@ -71,14 +71,14 @@ export function showHold(pad, row, step) {
 
 const chordChanges = (step) => chordAt(step) !== chordAt(step - 1);
 
-// What a row does at a step: 'hit' plays a short note, 'hold' starts a held one, 'keep' lets
-// the held note ring on, and 'off' ends it. A new note always ends the one before.
+// What a row does at a step: 'hit' plays a drum, 'hold' starts a tuned note, 'keep' lets it ring
+// on, and 'off' ends it. A tuned note lasts its squares: one square, or each one it holds. A new
+// note always ends the one before.
 export function cue(row, step, rings, ringing) {
   const cell = row[step];
   if (cell !== 'x' && cell !== HOLD) return 'off';
   if (!rings) return 'hit';
-  if (cell === 'x') return row[step + 1] === HOLD ? 'hold' : 'hit';
-  return ringing && !chordChanges(step) ? 'keep' : 'hold';
+  return cell === HOLD && ringing && !chordChanges(step) ? 'keep' : 'hold';
 }
 
 // Plays each row's step as the scheduler reaches it. Tuned sounds ring; the rest roll. A ringing

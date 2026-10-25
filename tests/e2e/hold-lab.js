@@ -27,3 +27,21 @@ export async function levels(id, row, bpm, windows) {
   const data = await render((engine) => playRow(engine, row, id, stepTime), START + row.length * stepTime + 0.6);
   return windows.map(([from, to]) => [db(rms(slice(data, from, to))), db(peak(slice(data, from, to)))]);
 }
+
+// How long one row of one sound lasts at `bpm`: from its first step to the end of its last
+// 10 ms slice above `floor` dBFS.
+export async function lasts(id, row, bpm, floor = -40) {
+  const stepTime = 60 / bpm / 4;
+  const data = await render((engine) => playRow(engine, row, id, stepTime), START + row.length * stepTime + 2);
+  const size = Math.round(RATE * 0.01);
+  const loud = (i) => db(rms(data.subarray(i * size, (i + 1) * size))) > floor;
+  const slices = Array.from({ length: Math.floor(data.length / size) }, (_, i) => i);
+  const last = slices.filter(loud).at(-1) ?? 0;
+  return (last + 1) * 0.01 - START;
+}
+
+// A sound's one-shot hit, as the kits are balanced on (sounds.js GAINS): its level over `seconds`.
+export async function hitLevel(id, seconds = 0.4) {
+  const data = await render((engine) => engine.play(id, START, 0), START + seconds + 0.1);
+  return db(rms(slice(data, START, START + seconds)));
+}

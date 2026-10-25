@@ -125,7 +125,7 @@ test('each step’s cue: start, keep, play again on a chord change, end', () => 
   assert.equal(cue(row, 8, true, true), 'hold', 'a chord change plays it again');
   assert.equal(cue(row, 9, true, true), 'keep');
   assert.equal(cue(row, 9, true, false), 'hold', 'a hold with nothing ringing (stretched while playing) starts one');
-  assert.equal(cue('x.', 0, true, false), 'hit', 'a one-step note is a plain hit');
+  assert.equal(cue('x.', 0, true, false), 'hold', 'a one-step tuned note lasts its square too');
   assert.equal(cue(row, 1, false, false), 'hit', 'a drum rolls');
   assert.equal(cue(row, 2, false, false), 'off');
 });
@@ -173,6 +173,16 @@ test('a held note ends at the step after its last hold', () => {
   const [note] = holds(log);
   assert.ok(Math.abs(note.time - at(2)) < EPS);
   assert.ok(Math.abs(note.off - at(6)) < EPS);
+});
+
+test('a single tuned note ends at its own square’s end, so a held one sounds longer', () => {
+  const { log, scheduler, run } = rig({ rows: ['..x.x---........'], ids: ['guitar'] });
+  scheduler.start();
+  run(1.5);
+  const [single, held] = holds(log);
+  assert.ok(Math.abs(single.time - at(2)) < EPS);
+  assert.ok(Math.abs(single.off - at(3)) < EPS, 'one square');
+  assert.ok(Math.abs(held.off - at(8)) < EPS, 'four squares');
 });
 
 test('a note held to the last step ends at the loop’s end, not after it', () => {

@@ -32,6 +32,8 @@ function lab(page, name, ...args) {
 }
 
 const START = 0.05;
+const FADE = 0.08;
+const TUNED = ['guitar', 'synth', 'chug', 'bass', 'rock-bass', '808', 'riff', 'bell'];
 const stepAt = (n, bpm) => START + (n * 15) / bpm;
 
 test.describe('how held notes sound', () => {
@@ -50,26 +52,52 @@ test.describe('how held notes sound', () => {
     expect(held[1][1], 'quiet once the hold ends').toBeLessThan(-60);
   });
 
-  test('a held guitar chord stops when its hold ends, not when the sample does', async ({ page }) => {
+  test('a guitar chord stops when its squares end, not when the 1.4 s sample does', async ({ page }) => {
     const bpm = 100;
-    const during = [stepAt(2, bpm), stepAt(4, bpm)];
-    const after = [stepAt(4, bpm) + 0.15, stepAt(4, bpm) + 0.45]; // the 1.4 s sample would still ring
-    const held = await lab(page, 'levels', 'guitar', 'x---............', bpm, [during, after]);
-    const short = await lab(page, 'levels', 'guitar', 'x...............', bpm, [during, after]);
-    expect(held[0][0]).toBeGreaterThan(-35);
-    expect(short[1][0], 'a short note rings on').toBeGreaterThan(-45);
-    expect(held[1][1], 'the held one has ended').toBeLessThan(-60);
+    const after = (n) => [stepAt(n, bpm) + 0.15, stepAt(n, bpm) + 0.45];
+    const held = await lab(page, 'levels', 'guitar', 'x---............', bpm, [[stepAt(2, bpm), stepAt(4, bpm)], after(4)]);
+    const single = await lab(page, 'levels', 'guitar', 'x...............', bpm, [[stepAt(0, bpm), stepAt(1, bpm)], after(1)]);
+    expect(held[0][0], 'the held one rings in its 3rd and 4th squares').toBeGreaterThan(-35);
+    expect(held[1][1], 'and has ended after them').toBeLessThan(-60);
+    expect(single[0][0], 'the single one rings in its square').toBeGreaterThan(-35);
+    expect(single[1][1], 'and has ended after it').toBeLessThan(-60);
   });
 
-  // Kits are balanced on each sound's first 0.4 s, so a held note rings on at about that level.
-  // The samples (guitar, riff) ring as they were recorded.
+  // Travis (PR 3 QC): "A held note is the same length as a single note." A tuned note lasts its squares.
+  test('a single tuned note is quiet by its square’s end plus the fade; a 4-step hold lasts about 4 times as long', async ({ page }) => {
+    const [bpm, step] = [100, 0.15];
+    for (const id of TUNED) {
+      const single = await lab(page, 'lasts', id, 'x...............', bpm);
+      const held = await lab(page, 'lasts', id, 'x---............', bpm);
+      const times = (held - FADE) / (single - FADE);
+      expect(single, `${id}: a single note lasts ${single.toFixed(2)} s`).toBeLessThanOrEqual(step + FADE + 0.02);
+      expect(times, `${id}: held ${held.toFixed(2)} s, single ${single.toFixed(2)} s`).toBeGreaterThan(3.5);
+      expect(times).toBeLessThan(4.5);
+    }
+  });
+
+  test('at the slowest tempo a single tuned note still lasts its whole square', async ({ page }) => {
+    const [bpm, step] = [60, 0.25];
+    for (const id of TUNED) {
+      const single = await lab(page, 'lasts', id, 'x...............', bpm);
+      expect(single, `${id}: ${single.toFixed(2)} s`).toBeGreaterThanOrEqual(step);
+      expect(single, id).toBeLessThanOrEqual(step + FADE + 0.02);
+    }
+  });
+
+  test('drums and effects stay one-shot hits: a single crash rings on past its square', async ({ page }) => {
+    expect(await lab(page, 'lasts', 'crash', 'x...............', 100)).toBeGreaterThan(0.5);
+  });
+
+  // Kits are balanced on each sound's one-shot hit over 0.4 s, so a held note rings on at about
+  // that level. The samples (guitar, riff) ring as they were recorded.
   for (const id of ['synth', 'chug', 'bass', 'rock-bass', '808', 'bell']) {
-    test(`a held ${id} rings on about as loud as its short note`, async ({ page }) => {
+    test(`a held ${id} rings on about as loud as its hit`, async ({ page }) => {
       const bpm = 100;
       const ringing = [stepAt(3, bpm), stepAt(4, bpm)];
       const [[held]] = await lab(page, 'levels', id, 'x-------........', bpm, [ringing]);
-      const [[short]] = await lab(page, 'levels', id, 'x...............', bpm, [[START, START + 0.4]]);
-      expect(Math.abs(held - short), `held ${held.toFixed(1)} dB, short ${short.toFixed(1)} dB`).toBeLessThan(4);
+      const hit = await lab(page, 'hitLevel', id);
+      expect(Math.abs(held - hit), `held ${held.toFixed(1)} dB, hit ${hit.toFixed(1)} dB`).toBeLessThan(4);
     });
   }
 
