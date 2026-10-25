@@ -73,6 +73,7 @@ function show(name) {
   screen = name;
   syncHistory(name);
   $(FOCUS[name]).focus({ preventScroll: true });
+  placeToast(); // a toast still showing from another screen moves off the strip's buttons too
 }
 
 // Record and Watch get one history entry, so Back (Android's gesture, a browser's button)

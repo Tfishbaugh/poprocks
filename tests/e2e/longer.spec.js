@@ -2,7 +2,7 @@
 // and a playhead that follows without ever moving the grid from under a finger.
 
 import { test, expect } from '@playwright/test';
-import { openCamera, startApp } from './helpers.js';
+import { download, openCamera, record, startApp } from './helpers.js';
 
 const pad = (page, track, step) => page.locator(`.pad[data-track="${track}"][data-step="${step}"]`);
 const padCount = (page) => page.locator('.pad').count();
@@ -341,6 +341,36 @@ for (const size of SIZES) {
     expect(await litPads(page)).toBe(before);
   });
 }
+
+async function clearOfSizeButtons(page) {
+  const toastBox = await page.locator('#toast').boundingBox();
+  const boxes = [await page.locator('#shorter').boundingBox(), await page.locator('#longer').boundingBox()];
+  return boxes.every((box) => apart(toastBox, box));
+}
+
+test('a toast still up from Watch moves off ➖ and ➕ when Beats comes back', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  await download(page, testInfo);
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Saved');
+  await page.click('#watch-back');
+  await expect(page.locator('#beats')).toBeVisible();
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Saved');
+  expect(await clearOfSizeButtons(page)).toBe(true);
+});
+
+test('a toast moves off ➖ and ➕ when a phone turns upright', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 360 });
+  await startApp(page);
+  await page.click('#more');
+  await page.click('#longer-tool');
+  await page.click('#shorter-tool');
+  await expect(page.locator('#toast:not([hidden])')).toContainText('Made shorter');
+  await page.setViewportSize({ width: 360, height: 640 });
+  await expect.poll(() => clearOfSizeButtons(page)).toBe(true);
+});
 
 test('➖ greys out at 16 steps, and one ↩ undoes it', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
