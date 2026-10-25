@@ -1,6 +1,6 @@
 // The sound kits. Most sounds are synthesized with Web Audio. Four short CC0 samples in sounds/
 // (LICENSES lists each one) do what synthesis does badly: guitar, a crash cymbal and Hey!.
-// Rows keep their job in every kit: 1 to 4 are drums, 5 to 8 play notes.
+// In a kit, rows 1 to 4 are drums and 5 to 8 play notes; a kid can put any sound on any row (task 84).
 
 export const KITS = [
   {
@@ -88,17 +88,30 @@ export function kitById(id) {
   return KITS.find((kit) => kit.id === id) ?? KITS[0];
 }
 
-// The kit on screen. Importers see SOUNDS live (an ES module binding), so useKit changes
-// which sound every row plays and what the grid names it.
-export let SOUNDS = KITS[0].sounds;
+// ---- Mix and match (task 84): each row names its own sound ----
 
-export function useKit(id) {
-  SOUNDS = kitById(id).sounds;
+const ALL = new Map(KITS.flatMap((kit) => kit.sounds.map((sound) => [sound.id, { ...sound, kit: kit.id }])));
+
+export const isSound = (id) => ALL.has(id);
+
+// A sound with its kit's id. An unknown id is Party's Kick (slots.js replaces those on loading).
+export function soundById(id) {
+  return ALL.get(id) ?? ALL.get(KITS[0].sounds[0].id);
 }
 
-// 🎲's starter beats for a kit. Party has none of its own: pattern.js's STARTERS are its.
-export function kitStarters(id) {
-  return kitById(id).starters;
+const kitIds = (kit) => kit.sounds.map((sound) => sound.id);
+
+// The kit every row's sound comes from, or null for a mix (the Sounds button shows 🎨 Mix).
+export function kitOf(ids) {
+  const kit = soundById(ids[0]).kit;
+  return ids.every((id) => soundById(id).kit === kit) ? kitById(kit) : null;
+}
+
+// 🎲's starter beats: a kit's own when the first 8 rows are exactly that kit (row 4 is a crash
+// in Rock), otherwise pattern.js's STARTERS. Party has none of its own.
+export function kitStarters(ids) {
+  const kit = KITS.find((one) => kitIds(one).every((id, i) => ids[i] === id));
+  return kit?.starters;
 }
 
 // ---- One key, one chord loop ----
@@ -118,9 +131,30 @@ export function fit(semis, low) {
   return low + ((((semis - low) % 12) + 12) % 12);
 }
 
-// One of the chord's notes at this step (0 root, 1 third, 2 fifth), in [low, low + 12).
-export function chordNote(step, index, low) {
-  return fit(chordAt(step)[index], low);
+// ---- The key slider (task 84): a note moved `lift` steps along E minor stays in the key ----
+
+const SCALE = [0, 2, 3, 5, 7, 8, 10];
+// A power chord adds the fifth, which is C# above F#, so power chords step over F#.
+const POWER = [0, 3, 5, 7, 8, 10];
+const mod = (n, m) => ((n % m) + m) % m;
+
+export function along(ladder, semis, lift) {
+  if (!lift) return semis;
+  const index = ladder.indexOf(mod(semis, 12)) + lift;
+  return (Math.floor(semis / 12) + Math.floor(index / ladder.length)) * 12 + ladder[mod(index, ladder.length)];
+}
+
+export const lifted = (semis, lift) => along(SCALE, semis, lift);
+
+// One of the chord's notes at this step (0 root, 1 third, 2 fifth), in [low, low + 12),
+// then moved by the key slider.
+export function chordNote(step, index, low, lift = 0) {
+  return lifted(fit(chordAt(step)[index], low), lift);
+}
+
+// A power chord's root: the chord's root, moved along the roots whose fifth stays in E minor.
+export function powerRoot(step, lift = 0) {
+  return along(POWER, fit(chordAt(step)[0], -4), lift);
 }
 
 const pitch = (octave, semis) => E1 * 2 ** (octave - 1 + semis / 12);
@@ -269,10 +303,13 @@ function cowbell(v, t) {
   tone(v, 'square', 800, t, 0.36, band);
 }
 
-function bass(v, t, step) {
+// The riff's notes are in E minor; A is 5 semitones above E.
+export const bassNote = (step, lift = 0) => lifted(5 + BASS_RIFF[step % BASS_RIFF.length], lift) - 5;
+
+function bass(v, t, step, lift) {
   const low = filter(v, 'lowpass', 1400, envelope(v, t, 0.6, 0.28), 4);
   sweep(low.frequency, 1400, 220, t, 0.2);
-  tone(v, 'sawtooth', A1 * 2 ** (BASS_RIFF[step % BASS_RIFF.length] / 12), t, 0.3, low);
+  tone(v, 'sawtooth', A1 * 2 ** (bassNote(step, lift) / 12), t, 0.3, low);
 }
 
 function laser(v, t) {
@@ -314,26 +351,26 @@ function tom(v, t) {
 const crash = (v, t) => sample(v, 'crash', t);
 
 // The sample is an E2 power chord, moved to the chord's root.
-const guitar = (v, t, step) => sample(v, 'chord', t, chordNote(step, 0, -4));
+const guitar = (v, t, step, lift) => sample(v, 'chord', t, powerRoot(step, lift));
 
 // A palm-muted power chord: root and fifth, distorted, cut short.
-function chug(v, t, step) {
-  const root = pitch(2, chordNote(step, 0, -4));
+function chug(v, t, step, lift) {
+  const root = pitch(2, powerRoot(step, lift));
   const fuzz = drive(v, v.fuzz, filter(v, 'lowpass', 1800, envelope(v, t, 1, 0.13), 1.5));
   tone(v, 'sawtooth', root, t, 0.15, fuzz);
   tone(v, 'sawtooth', root * 1.5, t, 0.15, fuzz);
 }
 
-function rockBass(v, t, step) {
+function rockBass(v, t, step, lift) {
   const low = filter(v, 'lowpass', 1000, envelope(v, t, 0.7, 0.3), 3);
   sweep(low.frequency, 1000, 260, t, 0.22);
-  tone(v, 'sawtooth', pitch(1, chordNote(step, 0, -2)), t, 0.32, low);
+  tone(v, 'sawtooth', pitch(1, chordNote(step, 0, -2, lift)), t, 0.32, low);
 }
 
 // Which chord note the riff plays on each step: root, root, fifth, root, third, fifth, third, fifth.
 // The sample is an E3, so notes stay within a fifth of it.
 const RIFF = [0, 0, 2, 0, 1, 2, 1, 2];
-const riff = (v, t, step) => sample(v, 'riff', t, chordNote(step, RIFF[step % RIFF.length], -5));
+const riff = (v, t, step, lift) => sample(v, 'riff', t, chordNote(step, RIFF[step % RIFF.length], -5, lift));
 
 // ---- K-pop ----
 
@@ -354,8 +391,8 @@ function kpopHat(v, t) {
   noise(v, t, 0.04, filter(v, 'highpass', 9000, envelope(v, t, 0.5, 0.035)));
 }
 
-function eight08(v, t, step) {
-  const root = pitch(1, chordNote(step, 0, -2));
+function eight08(v, t, step, lift) {
+  const root = pitch(1, chordNote(step, 0, -2, lift));
   const osc = tone(v, 'sine', root * 1.5, t, 0.9, drive(v, v.warm, envelope(v, t, 0.8, 0.85)));
   osc.frequency.exponentialRampToValueAtTime(root, t + 0.04);
 }
@@ -363,8 +400,8 @@ function eight08(v, t, step) {
 // A rolling arpeggio of the chord, as a glassy FM bell.
 const ARPEGGIO = [0, 1, 2, 1];
 
-function bell(v, t, step) {
-  const frequency = pitch(5, chordNote(step, ARPEGGIO[step % ARPEGGIO.length], -5));
+function bell(v, t, step, lift) {
+  const frequency = pitch(5, chordNote(step, ARPEGGIO[step % ARPEGGIO.length], -5, lift));
   const carrier = tone(v, 'sine', frequency, t, 0.9, envelope(v, t, 0.4, 0.8));
   const depth = v.ctx.createGain();
   sweep(depth.gain, frequency * 2, 1, t, 0.5);
@@ -379,10 +416,11 @@ function supersaw(v, frequency, t, dest) {
 }
 
 // The whole chord on three detuned saws a note: the big K-pop synth.
-function synth(v, t, step) {
+// Moved by the key slider, each note of the chord steps along E minor, so it stays in the key.
+function synth(v, t, step, lift) {
   const low = filter(v, 'lowpass', 4000, envelope(v, t, 0.12, 0.36), 0.8);
   sweep(low.frequency, 4000, 1200, t, 0.3);
-  chordAt(step).forEach((semis) => supersaw(v, pitch(4, fit(semis, -5)), t, low));
+  chordAt(step).forEach((semis) => supersaw(v, pitch(4, lifted(fit(semis, -5), lift)), t, low));
 }
 
 const hey = (v, t) => sample(v, 'hey', t);
@@ -484,10 +522,10 @@ export function createEngine(ctx = newContext()) {
   let demo = null;
   let loading = null;
 
-  function hit(id, time, step, dest, held = {}) {
+  function hit(id, time, step, dest, lift = 0, held = {}) {
     const trim = setParams(ctx.createGain(), { gain: GAINS.get(id) });
     trim.connect(dest);
-    VOICES[id]({ ...v, ...held, out: trim }, Math.max(time, ctx.currentTime), step);
+    VOICES[id]({ ...v, ...held, out: trim }, Math.max(time, ctx.currentTime), step, lift);
   }
 
   function fetchSamples() {
@@ -499,18 +537,19 @@ export function createEngine(ctx = newContext()) {
   return {
     ctx,
     output: bus.output,
-    play(id, time = ctx.currentTime, step = 0) {
-      hit(id, time, step, bus.input);
+    // `lift`: how far the key slider moved the note (tuned sounds only; task 84).
+    play(id, time = ctx.currentTime, step = 0, lift = 0) {
+      hit(id, time, step, bus.input, lift);
     },
     // A held note (task 84): it rings until release(time) fades it out on the audio clock,
     // or until CAP if that never comes.
-    hold(id, time = ctx.currentTime, step = 0) {
+    hold(id, time = ctx.currentTime, step = 0, lift = 0) {
       const start = Math.max(time, ctx.currentTime);
       const gate = ctx.createGain();
       const sources = [];
       gate.connect(bus.input);
       fadeOut(gate.gain, start + CAP);
-      hit(id, start, step, gate, { sustain: SUSTAINS.get(id) ?? SUSTAIN, cap: CAP + FADE, sources });
+      hit(id, start, step, gate, lift, { sustain: SUSTAINS.get(id) ?? SUSTAIN, cap: CAP + FADE, sources });
       return {
         release(off) {
           const end = Math.max(off, ctx.currentTime);

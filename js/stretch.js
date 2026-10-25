@@ -2,15 +2,13 @@
 // - Press and hold a square (js/hold.js), then slide along its row: the bar's end moves as far as
 //   the finger does, so a note can be grabbed anywhere on its bar. An empty square becomes a note.
 // - Lift without sliding, and the note panel's ◀ ▶ change its length a step at a time.
-// - Keys: Shift+→ holds the focused note one step longer and Shift+← one shorter (Shift+↓ and
-//   Shift+↑ too on an upright screen, where steps run down). On an empty square, Shift+→ starts
-//   a 2-step note there.
+// - Keys: Shift+→ holds the focused note one step longer and Shift+← one shorter, on any screen
+//   (Shift+↑ and Shift+↓ are the key slider's). On an empty square, Shift+→ starts a 2-step note.
 
 import { holdTo, noteEnd, noteStart, stretchLimit } from './holds.js';
 import { button, el } from './dom.js';
 
 const BY = { ArrowRight: 1, ArrowLeft: -1 };
-const BY_TURNED = { ...BY, ArrowDown: 1, ArrowUp: -1 };
 const NEAR = 3; // steps past a note's end that the note panel keeps clear of, for ▶ to grow into
 
 function withRow(beat, track, row) {
@@ -34,7 +32,7 @@ const lengthWords = (steps) => (steps > 1 ? `Held for ${steps} steps.` : 'Not he
 
 // `commit` makes each key press its own ↩; `edit` adds to the open press and hold's one ↩.
 // `preview(track, row, start)` plays a note as the beat would.
-export function createStretch({ root, slot, turned, beat, commit, edit, announce, preview }) {
+export function createStretch({ root, slot, beat, commit, edit, announce, preview }) {
   const shorter = lengthButton('◀︎', 'Shorter note');
   const longer = lengthButton('▶︎', 'Longer note');
   let held = null; // { track, step, start, end }: the note held, and where it was held
@@ -86,7 +84,7 @@ export function createStretch({ root, slot, turned, beat, commit, edit, announce
   // Before the grid's own arrows, which move focus.
   function onKey(event) {
     const { track, step: at } = event.target.dataset;
-    const by = event.shiftKey && (turned() ? BY_TURNED : BY)[event.key];
+    const by = event.shiftKey && BY[event.key];
     if (!by || at === undefined) return;
     event.preventDefault();
     event.stopPropagation();
@@ -115,11 +113,12 @@ export function createStretch({ root, slot, turned, beat, commit, edit, announce
     slid() {
       if (held) hear();
     },
-    // The note panel opens on `note`: ◀ ▶ go in its length slot.
+    // The note panel opens on `note`: ◀ ▶ go in its length slot. Returns the note's first step.
     open(note) {
       grab(note);
       showLength();
       slot.hidden = false;
+      return held.start;
     },
     // Where the note panel keeps clear of: the held square and the next steps the bar grows into.
     room(note) {

@@ -1,23 +1,24 @@
 import {
-  SOUNDS, TUNED, audioSupported, createEngine, kitById, kitStarters, setAudioSession, useKit,
+  TUNED, audioSupported, createEngine, kitById, kitOf, kitStarters, setAudioSession, soundById,
 } from './sounds.js';
 import { createScheduler, stepDuration } from './scheduler.js';
 import {
   BAR, BPM_MAX, BPM_MIN, BPM_STEP, MAX_STEPS, canDouble, clear, copyBeat, copyRow, createHistory, double, isEmpty,
-  isOn, longer, shorter, stepCount, surprise, toggle, withBpm, withKit,
+  LIFT_MAX, isOn, liftAt, longer, shorter, stepCount, surprise, toggle, withBpm, withLift, withSound, withSounds,
 } from './pattern.js';
 import { SLOT_COUNT, loadState, saveState } from './slots.js';
-import { createGrid } from './grid.js';
+import { createGrid, padLabel } from './grid.js';
 import { createStrip } from './strip.js';
 import { createCopySheet } from './copy.js';
-import { createKitPicker, labelGrid } from './kits.js';
+import { createKitPicker } from './kits.js';
+import { createRowPicker } from './picker.js';
 import {
   MAX_SECONDS, NO_VIDEO_NOTE, cameraError, canRecord, createMix, openCamera, pickFormat, startRecorder, stopStream,
 } from './recorder.js';
 import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
-import { createHoldPlayer, createNotePreview } from './holds.js';
+import { createHoldPlayer, createNotePreview, noteLift, noteStart } from './holds.js';
 import { createStretch } from './stretch.js';
 import { createHold } from './hold.js';
 import { createNotePanel } from './note.js';
@@ -64,8 +65,8 @@ let deleted = null;
 let toastState = null;
 let pointerType = '';
 let fingerDown = false;
-let shownKit = '';
 let kitSession = null;
+let rowSession = null;
 
 const beat = () => state.slots[state.slot];
 const undoStack = () => histories[state.slot];
@@ -91,6 +92,7 @@ function syncHistory(name) {
 
 function onBack() {
   if (copySheet.isOpen) return copySheet.close();
+  if ($('row-sheet').open) return $('row-sheet').close();
   if ($('note-panel').open) return notePanel.close();
   if ($('kits').open) return $('kits').close();
   if (screen === 'watch' && effects.back()) return; // Effects closes first (task 80)
@@ -151,7 +153,7 @@ function renderTools(current) {
 
 function render() {
   const current = beat();
-  showKit(beatKit());
+  showKit();
   grid.render(current);
   renderTools(current);
   document.querySelectorAll('.slot').forEach((button) => {
@@ -176,11 +178,7 @@ function commit(next) {
 
 function onToggle(track, step) {
   commit(toggle(beat(), track, step));
-  if (!scheduler?.playing && isOn(beat(), track, step)) engine?.play(SOUNDS[track].id);
-}
-
-function onSound(track) {
-  engine?.play(SOUNDS[track].id);
+  if (!scheduler?.playing && isOn(beat(), track, step)) engine?.play(beat().sounds[track], undefined, step);
 }
 
 function changeTempo(delta) {
@@ -225,36 +223,37 @@ function closeMoreOutside(event) {
   if (isMoreOpen() && !event.target.closest('#tools, #more')) setMore(false);
 }
 
-// ---- Sound kits (task 80, lane B) ----
+// ---- Sounds: kit presets (task 80, lane B) and a sound per row (task 84) ----
 
-const beatKit = () => kitById(beat().kit);
+const soundAt = (track) => soundById(beat().sounds[track]);
+const MIX = { emoji: '🎨', label: 'Mix' };
+const sameSounds = (a, b) => a.join() === b.join();
+const kitSounds = (id) => kitById(id).sounds.map((sound) => sound.id);
 
-// Every row plays, and the grid shows, the sounds of the beat's own kit.
-function showKit(kit) {
-  if (kit.id === shownKit) return;
-  shownKit = kit.id;
-  useKit(kit.id);
-  labelGrid($('grid'), kit.sounds);
-  setButton('sounds', kit.emoji, kit.label);
-  setButton('sounds-tool', kit.emoji, 'Sounds');
-  $('sounds').setAttribute('aria-label', `Sounds: ${kit.label}`);
-  $('sounds-tool').setAttribute('aria-label', `Sounds: ${kit.label}`);
+// The Sounds button shows the kit every row's sound comes from, or 🎨 Mix.
+function showKit() {
+  const { emoji, label } = kitOf(beat().sounds) ?? MIX;
+  setButton('sounds', emoji, label);
+  setButton('sounds-tool', emoji, 'Sounds');
+  $('sounds').setAttribute('aria-label', `Sounds: ${label}`);
+  $('sounds-tool').setAttribute('aria-label', `Sounds: ${label}`);
 }
 
 // One visit to the picker is one Undo, however many kits a kid tries on the way.
 function openKits() {
   setMore(false);
-  kitSession = { before: beatKit().id, pushed: false };
-  kitPicker.open(beatKit().id);
+  kitSession = { before: beat().sounds, pushed: false };
+  kitPicker.open(kitOf(beat().sounds)?.id ?? null);
   history.pushState({ poprocks: 'kits' }, '');
 }
 
-// While the beat plays, the beat itself is the preview.
+// A kit is a preset: its sounds go on every row. While the beat plays, the beat is the preview.
 function onPickKit(id) {
-  if (id === beatKit().id) return;
+  const next = withSounds(beat(), kitSounds(id));
+  if (sameSounds(next.sounds, beat().sounds)) return;
   if (!kitSession.pushed) undoStack().push(beat());
   kitSession.pushed = true;
-  setBeat(withKit(beat(), id));
+  setBeat(next);
   engine.load();
   if (!scheduler.playing) engine.preview(id);
 }
@@ -264,10 +263,43 @@ function onKitsClosed() {
   const { before, pushed } = kitSession;
   kitSession = null;
   if (!pushed) return;
-  if (before === beatKit().id) return undo();
-  const { emoji, label } = beatKit();
-  const onAction = () => commit(withKit(beat(), before));
+  if (sameSounds(before, beat().sounds)) return undo();
+  const { emoji, label } = kitOf(beat().sounds) ?? MIX;
+  const onAction = () => commit(withSounds(beat(), before));
   toast(`${emoji} ${label} sounds`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
+}
+
+// A tap on a row's name: "Sound for row N", which plays the row's sound as it opens.
+// One visit is one Undo, however many sounds a kid tries.
+function onSound(track) {
+  setMore(false);
+  const id = beat().sounds[track];
+  rowSession = { before: id, pushed: false };
+  rowPicker.open(track, id);
+  history.pushState({ poprocks: 'row' }, '');
+  engine.play(id);
+}
+
+// While the beat plays, the beat itself is the preview.
+function onPickRowSound(track, id) {
+  if (!scheduler.playing) engine.play(id);
+  if (id === beat().sounds[track]) return;
+  if (!rowSession.pushed) undoStack().push(beat());
+  rowSession.pushed = true;
+  setBeat(withSound(beat(), track, id));
+  engine.load();
+}
+
+function onRowClosed(track) {
+  if (history.state?.poprocks === 'row') history.back();
+  const { before, pushed } = rowSession;
+  rowSession = null;
+  grid.nameButton(track)?.focus({ preventScroll: true });
+  if (!pushed) return;
+  if (before === beat().sounds[track]) return undo();
+  const { emoji, label } = soundAt(track);
+  const onAction = () => commit(withSound(beat(), track, before));
+  toast(`${emoji} ${label} on row ${track + 1}`, { action: 'Undo', ms: 6000, onAction, slot: state.slot });
 }
 
 // ---- Longer beats and copy (task 80, lane A) ----
@@ -320,7 +352,7 @@ function onCopyBeat(target) {
 function onCopyRow(from, to) {
   const before = beat();
   commit(copyRow(before, from, to));
-  withUndo(`Copied ${SOUNDS[from].label} onto ${SOUNDS[to].label}.`, before);
+  withUndo(`Copied ${soundAt(from).label} onto ${soundAt(to).label}.`, before);
 }
 
 // The sheet gets a history entry so Back closes it; the beat screen behind it is inert.
@@ -359,9 +391,11 @@ function onHoldNote(note) {
 function onLift(note, { moved }) {
   if (moved) stretch.slid();
   if (moved || !note) return endNoteVisit();
-  const { id, label } = SOUNDS[note.track];
-  stretch.open(note);
-  notePanel.open({ ...note, box: stretch.room(note) }, { lift: 0, tuned: TUNED.has(id), label: `${label}, step ${note.step + 1}` });
+  const { track } = note;
+  const step = stretch.open(note); // a held note's height is its first step's
+  const label = `${soundAt(track).label}, step ${step + 1}`;
+  const target = { ...note, step, box: stretch.room(note) };
+  notePanel.open(target, { lift: liftAt(beat(), track, step), tuned: TUNED.has(beat().sounds[track]), label });
   history.pushState({ poprocks: 'note' }, '');
 }
 
@@ -369,15 +403,30 @@ function onLift(note, { moved }) {
 function previewNote(track, row, start) {
   if (!engine || scheduler.playing) return;
   notePreview ??= createNotePreview(engine);
-  notePreview(row, SOUNDS[track].id, start, stepDuration(beat().bpm));
+  notePreview(row, beat().sounds[track], start, stepDuration(beat().bpm), noteLift(beat(), track, start));
 }
 
 function endNoteVisit() {
   noteVisit = null;
 }
 
-// The key slider: the next commit stores the lift and plays the note at it.
-function onNoteLift() {}
+// The key slider: the note moves along E minor and plays at its new height.
+function onNoteLift({ track, step }, lift) {
+  editNote(withLift(beat(), track, step, lift));
+  if (!scheduler.playing) engine.play(beat().sounds[track], undefined, step, lift);
+}
+
+// Shift+↑ and Shift+↓ on a tuned note: the key slider's keys, one ↩ each. On a held note's bar
+// they move the note, whose height is its first step's.
+function onLiftKey(track, at, delta) {
+  const step = noteStart(beat().rows[track], at);
+  if (step < 0 || !TUNED.has(beat().sounds[track])) return;
+  const lift = liftAt(beat(), track, step) + delta;
+  if (Math.abs(lift) > LIFT_MAX) return;
+  commit(withLift(beat(), track, step, lift));
+  if (!scheduler.playing) engine.play(beat().sounds[track], undefined, step, lift);
+  $('sr-status').textContent = padLabel(soundAt(track), step, lift);
+}
 
 function onNoteClosed(note) {
   if (history.state?.poprocks === 'note') history.back();
@@ -389,7 +438,7 @@ function onNoteClosed(note) {
 
 // Held notes ring or roll, and end on the audio clock (task 84: js/holds.js).
 function onStep(step, time) {
-  SOUNDS.forEach((sound, track) => holdPlayer.step(beat().rows[track], track, sound.id, step, time));
+  beat().sounds.forEach((id, track) => holdPlayer.step(beat().rows[track], track, id, step, time, noteLift(beat(), track, step)));
   queue.push({ step, time });
 }
 
@@ -478,6 +527,7 @@ function onStart() {
   engine.resume();
   show('beats');
   tourOnce('beats');
+  tourOnce('mix');
 }
 
 function showStartNote(text) {
@@ -745,12 +795,11 @@ function wakeAudio() {
   if (engine && engine.ctx.state !== 'running') engine.resume();
 }
 
-const grid = createGrid($('grid'), { onToggle, onSound });
+const grid = createGrid($('grid'), { onToggle, onSound, onLift: onLiftKey });
 // Held notes (task 84): a slide or ◀ ▶ shares the hold's one ↩; Shift+→ and Shift+← are one each.
 const stretch = createStretch({
   root: $('grid'),
   slot: $('note-length'),
-  turned: () => grid.turned(),
   beat,
   commit,
   edit: editNote,
@@ -760,6 +809,7 @@ const stretch = createStretch({
 createHold($('grid'), { onHold: onHoldNote, onMove: (note) => stretch.move(note), onLift, onCancel: endNoteVisit });
 const notePanel = createNotePanel($('note-panel'), { onLift: onNoteLift, onClose: onNoteClosed });
 const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
+const rowPicker = createRowPicker($('row-sheet'), { onPick: onPickRowSound, onClose: onRowClosed });
 const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });
 const strip = createStrip({
   wrap: $('grid-wrap'),
@@ -779,7 +829,7 @@ const copySheet = createCopySheet({
   rowTitle: $('copy-row-title'),
   slots: () => state.slots,
   current: () => state.slot,
-  sounds: () => SOUNDS,
+  sounds: () => beat().sounds.map(soundById),
   onCopyBeat,
   onCopyRow,
   onToggle: onCopySheet,
@@ -790,7 +840,7 @@ const CLICKS = {
   play: () => togglePlay(),
   slower: () => changeTempo(-BPM_STEP),
   faster: () => changeTempo(BPM_STEP),
-  surprise: () => commit(surprise(beat(), Math.random, kitStarters(beat().kit))),
+  surprise: () => commit(surprise(beat(), Math.random, kitStarters(beat().sounds))),
   clear: onClear,
   undo,
   more: () => setMore(!isMoreOpen()),

@@ -52,17 +52,22 @@ export function removeNote(row, step) {
   return row.slice(0, start) + '.'.repeat(end - start + 1) + row.slice(end + 1);
 }
 
+// How far the key slider moved the note covering `step` (task 84): a held note plays at its first
+// step's height all along its bar. An empty square reads its row's first step, and plays nothing.
+export function noteLift(beat, track, step) {
+  return beat.pitch[track][Math.max(noteStart(beat.rows[track], step), 0)];
+}
+
 // ---- On the grid ----
 
-// A held note shows as one bar: each step joins the step before or after it (app.css draws
-// that), and each says so in its name: "Bass, step 5, held".
+// A held note shows as one bar: each step joins the step before or after it (app.css draws that).
+// Returns whether the step is on a held note's bar, so its name can say so: "Bass, step 5, held".
 export function showHold(pad, row, step) {
   const joinPrev = row[step] === HOLD;
   const joinNext = row[step + 1] === HOLD;
-  const name = pad.getAttribute('aria-label').replace(/, held$/, '');
   pad.classList.toggle('join-prev', joinPrev);
   pad.classList.toggle('join-next', joinNext);
-  pad.setAttribute('aria-label', joinPrev || joinNext ? `${name}, held` : name);
+  return joinPrev || joinNext;
 }
 
 // ---- Playing ----
@@ -79,7 +84,8 @@ export function cue(row, step, rings, ringing) {
   return ringing && !chordChanges(step) ? 'keep' : 'hold';
 }
 
-// Plays each row's step as the scheduler reaches it. Tuned sounds ring; the rest roll. A held note ends on the audio clock at the
+// Plays each row's step as the scheduler reaches it. Tuned sounds ring; the rest roll. A ringing
+// note whose height the key slider changed plays again at the new height. A held note ends on the audio clock at the
 // first step that doesn't hold it, so a tempo change, an edit, the loop's end and Stop all end it on time.
 export function createHoldPlayer(engine) {
   const ringing = new Map();
@@ -90,12 +96,13 @@ export function createHoldPlayer(engine) {
   }
 
   return {
-    step(row, track, id, step, time) {
-      const action = cue(row, step, TUNED.has(id), ringing.get(track)?.id === id);
+    step(row, track, id, step, time, lift = 0) {
+      const now = ringing.get(track);
+      const action = cue(row, step, TUNED.has(id), now?.id === id && now.lift === lift);
       if (action === 'keep') return;
       release(track, time);
-      if (action === 'hit') engine.play(id, time, step);
-      if (action === 'hold') ringing.set(track, { id, note: engine.hold(id, time, step) });
+      if (action === 'hit') engine.play(id, time, step, lift);
+      if (action === 'hold') ringing.set(track, { id, lift, note: engine.hold(id, time, step, lift) });
     },
     releaseAll(time) {
       [...ringing.keys()].forEach((track) => release(track, time));
@@ -103,9 +110,9 @@ export function createHoldPlayer(engine) {
   };
 }
 
-function playNote(player, row, id, start, at) {
+function playNote(player, row, id, start, at, lift) {
   const end = noteEnd(row, start);
-  for (let step = start; step <= end; step += 1) player.step(row, 0, id, step, at(step));
+  for (let step = start; step <= end; step += 1) player.step(row, 0, id, step, at(step), lift);
   player.releaseAll(at(end + 1));
 }
 
@@ -119,10 +126,10 @@ export function createNotePreview(engine) {
   };
   const engineKept = { play: engine.play, hold: (...args) => keep(engine.hold(...args)) };
 
-  return function preview(row, id, start, stepTime) {
+  return function preview(row, id, start, stepTime, lift = 0) {
     const now = engine.ctx.currentTime + 0.02;
     notes.forEach((note) => note.release(now));
     notes = [];
-    playNote(createHoldPlayer(engineKept), row, id, start, (step) => now + (step - start) * stepTime);
+    playNote(createHoldPlayer(engineKept), row, id, start, (step) => now + (step - start) * stepTime, lift);
   };
 }

@@ -62,11 +62,11 @@ function playRow(engine, row, id, stepTime) {
   [...row].forEach((cell, step) => { if (cell === 'x') engine.play(id, step * stepTime, step); });
 }
 
-// A whole beat (rows as in pattern.js) played once in a kit.
-function renderBeat(kitId, rows, bpm) {
-  const { sounds } = kitById(kitId);
+// A whole beat (rows as in pattern.js) played once in a kit, or with a sound id per row (a mix).
+function renderBeat(kit, rows, bpm) {
+  const ids = Array.isArray(kit) ? kit : kitById(kit).sounds.map((sound) => sound.id);
   const stepTime = 60 / bpm / 4;
-  const play = (engine) => rows.forEach((row, track) => playRow(engine, row, sounds[track].id, stepTime));
+  const play = (engine) => rows.forEach((row, track) => playRow(engine, row, ids[track], stepTime));
   return render(play, rows[0].length * stepTime + 0.5);
 }
 
@@ -127,6 +127,7 @@ function yin(data, at) {
   return RATE / (lag + (a - c) / (2 * (a - 2 * b + c)));
 }
 
-export async function pitchOf(id, step, at = 0.15) {
-  return yin(await render((engine) => engine.play(id, 0, step), 0.6), at);
+// `lift`: how far the key slider moved the note (task 84).
+export async function pitchOf(id, step, at = 0.15, lift = 0) {
+  return yin(await render((engine) => engine.play(id, 0, step, lift), 0.6), at);
 }
