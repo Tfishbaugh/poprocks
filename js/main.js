@@ -30,6 +30,7 @@ const BACK = { record: () => onRecordClose(), watch: () => backToBeats() };
 const FOCUS = { start: 'start-btn', beats: 'play', record: 'rec-close', watch: 'watch-save' };
 const RING = 2 * Math.PI * 54;
 const FOLLOW_PAUSE_MS = 8000;
+const TOAST_GRACE_MS = 800;
 
 function localStore() {
   try {
@@ -78,6 +79,7 @@ function show(name) {
   screen = name;
   syncHistory(name);
   $(FOCUS[name]).focus({ preventScroll: true });
+  placeToast(); // a toast still showing from another screen moves off the strip's buttons too
 }
 
 // Record and Watch get one history entry, so Back (Android's gesture, a browser's button)
@@ -103,25 +105,38 @@ function setButton(id, icon, label) {
   $(id).querySelector('.lbl').textContent = label;
 }
 
-// On Beats the toast sits just under the strip, so a quick second ➖ never lands on its Undo.
-function toastTop() {
-  return screen === 'beats' ? `${$('strip-nav').getBoundingClientRect().bottom + 8}px` : '';
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+// A toast never covers the strip's buttons, where a quick second ➖ would hit its Undo:
+// if they're under it (a phone is too narrow for it to fit over the map), it moves under the strip.
+function placeToast() {
+  const node = $('toast');
+  node.style.top = '';
+  if (screen !== 'beats' || node.hidden) return;
+  const box = node.getBoundingClientRect();
+  const under = [...$('strip-nav').querySelectorAll('button')].some((b) => overlaps(b.getBoundingClientRect(), box));
+  if (under) node.style.top = `${$('strip-nav').getBoundingClientRect().bottom + 8}px`;
 }
 
+// Taps go through a toast to what's under it; only its Undo catches them, and not in its first
+// 0.8 s, so a tap a kid already meant for a pad or a name never lands on Undo.
 function toast(message, { action = '', ms = 3000, onAction = null, onEnd = null, slot = -1 } = {}) {
   closeToast();
   $('toast-msg').textContent = message;
   $('toast-action').textContent = action;
   $('toast-action').hidden = !action;
-  $('toast').style.top = toastTop();
+  $('toast').classList.add('fresh');
   $('toast').hidden = false;
-  toastState = { onAction, onEnd, slot, timer: setTimeout(closeToast, ms) };
+  placeToast();
+  const settle = setTimeout(() => $('toast').classList.remove('fresh'), TOAST_GRACE_MS);
+  toastState = { onAction, onEnd, slot, settle, timer: setTimeout(closeToast, ms) };
 }
 
 function closeToast() {
   if (!toastState) return;
-  const { onEnd, timer } = toastState;
+  const { onEnd, settle, timer } = toastState;
   toastState = null;
+  clearTimeout(settle);
   clearTimeout(timer);
   $('toast').hidden = true;
   onEnd?.();
@@ -899,6 +914,7 @@ document.addEventListener('mousedown', keepFocusOffButtons);
 document.addEventListener('visibilitychange', () => { if (document.hidden) onHide(); });
 window.addEventListener('pagehide', onHide);
 window.addEventListener('popstate', onBack);
+window.addEventListener('resize', placeToast);
 $('ring-left').style.strokeDasharray = String(RING);
 render();
 

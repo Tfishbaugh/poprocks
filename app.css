@@ -849,6 +849,10 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 .toast-action { background: var(--bg); color: var(--text); }
 
+/* Taps go through the toast; its Undo catches them only after its first 0.8 s (js/main.js). */
+.toast, .toast.fresh .toast-action { pointer-events: none; }
+.toast-action { pointer-events: auto; }
+
 /* ---- Tour (js/tour.js): a lit control, everything else dimmed, and a card beside it ---- */
 
 .tour { position: fixed; z-index: 20; inset: 0; }
