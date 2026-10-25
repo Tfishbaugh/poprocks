@@ -109,6 +109,7 @@ test('the panel opens at the note’s own height, and a note keeps it after a re
   await holdAndLift(page, pad(page, 5, 0));
   await expect(page.locator('#note-slider')).toHaveValue('-1');
   await page.click('#note-done');
+  await expect.poll(() => page.evaluate(() => history.state?.poprocks ?? null), { message: 'the panel’s Back entry is gone' }).toBeNull();
   await page.reload();
   await page.click('#start-btn');
   expect(await lift(page, 5, 0)).toBe('↓1');

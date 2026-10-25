@@ -133,6 +133,7 @@ test.describe('kits as presets', () => {
     await pickRowSound(page, 5, 'chug');
     await page.click('.slot[data-slot="1"]');
     expect(await rowNames(page)).toEqual(PARTY);
+    await expect.poll(() => page.evaluate(() => history.state?.poprocks ?? null), { message: 'the sheet’s Back entry is gone' }).toBeNull();
     await page.reload();
     await page.click('#start-btn');
     await page.click('.slot[data-slot="0"]');
