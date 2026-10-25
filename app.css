@@ -1040,3 +1040,46 @@ button:disabled { cursor: default; opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) {
   .pad.held { transform: none; }
 }
+
+/* ---- Mix and match (task 84): a ▾ on each name, and "Sound for row N" ---- */
+
+.sound .pick { position: absolute; right: 4px; bottom: 1px; font-size: 12px; line-height: 1; color: var(--muted); }
+
+.row-kits { display: flex; flex-direction: column; gap: 12px; }
+.row-kit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.row-kit-name { grid-column: 1 / -1; margin: 0; font-size: 16px; font-weight: 800; color: var(--muted); }
+
+.row-sound {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--pad-off);
+  color: var(--text);
+}
+
+.row-sound .ico { font-size: 22px; }
+.row-sound[aria-pressed="true"] { outline: 4px solid var(--text); outline-offset: -4px; background: var(--pad-now); }
+.row-sound[aria-pressed="true"] .lbl::after { content: ' ✓'; }
+
+/* A phone on its side: each kit on one line, so all three fit with little scrolling. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .row-kit { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .row-kit-name { font-size: 14px; }
+}
+
+/* ---- The key slider (task 84): a moved note shows ↑2 or ↓1 in its corner ---- */
+
+.pad { position: relative; }
+
+.pad.on[data-lift]:not([data-lift=""])::after {
+  content: attr(data-lift);
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--on-c);
+}

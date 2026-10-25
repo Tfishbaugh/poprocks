@@ -168,6 +168,20 @@
     </div>
   </dialog>
 
+  <!-- Sound for row N (task 84): a tap on a row's name opens it. js/picker.js fills in every kit's
+       sounds; more rows put 🗑 Remove row in #row-extra. -->
+  <dialog id="row-sheet" class="kits row-sheet" aria-labelledby="row-title">
+    <div class="kits-card">
+      <div class="kits-head">
+        <h2 id="row-title">Sound for row 1</h2>
+        <button id="row-close" class="btn tool kits-close row-close" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+      </div>
+      <div class="row-kits"></div>
+      <div id="row-extra" class="row-extra"></div>
+      <p class="kit-credit"></p>
+    </div>
+  </dialog>
+
   <!-- The note panel (task 84): press and hold a square, then lift. ↕ is the key slider (js/note.js);
        held notes put ◀ ▶ in #note-length. -->
   <dialog id="note-panel" class="note-panel" aria-labelledby="note-title">

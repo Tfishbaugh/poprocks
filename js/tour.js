@@ -9,6 +9,12 @@ export const TOUR_KEY = 'poprocks.tour';
 const GAP = 16;
 const RING = 8;
 
+// Task 84: a row's name opens its sounds, and a held note gets the key slider.
+const MIX = [
+  { name: 'names', find: '#grid .sound', pic: '🎹▾', text: 'Tap a name to change its sound' },
+  { name: 'hold', find: '#grid .pad.on.tuned', pic: '👇↕', text: 'Press and hold a note to make it higher or lower' },
+];
+
 export const TOURS = {
   beats: [
     { name: 'pads', find: '#grid .pad', pic: '👆', text: 'Tap squares to make a beat' },
@@ -16,13 +22,19 @@ export const TOURS = {
     { name: 'video', find: '#make-video', pic: '🎥', text: 'Film a music video' },
     { name: 'slots', find: '#slots', pic: '1️⃣2️⃣3️⃣4️⃣', text: 'Keep 4 beats. Pick a number!' },
     { name: 'sounds', find: '#sounds, [data-tour="sounds"]', folded: '#sounds-tool', pic: '🎉🎸💖', text: 'Pick new sounds' },
+    ...MIX,
     { name: 'longer', find: '#longer, [data-tour="longer"]', folded: '#longer-tool', pic: '➕', text: 'Make it longer' },
   ],
+  // Task 84's new steps, once, for kids who already did the tour above (it covers them).
+  mix: MIX,
   watch: [
     { name: 'effects', find: '#watch-fx, [data-tour="effects"]', pic: '🪄', text: 'Add magic effects' },
     { name: 'save', find: '#watch-save', pic: '💾', text: 'Save it to keep it!' },
   ],
 };
+
+// A tour that has another's steps marks that one seen too.
+const COVERS = { beats: ['mix'] };
 
 const shown = new Set();
 let storage = null;
@@ -182,7 +194,7 @@ export function startTour(name) {
   steps = TOURS[name].filter(findTarget);
   if (!steps.length) return;
   ui ??= build();
-  markSeen(name);
+  [name, ...(COVERS[name] ?? [])].forEach(markSeen);
   index = 0;
   opener = document.activeElement;
   entry = Date.now();

@@ -277,6 +277,32 @@ test.describe('how the kits sound', () => {
     }
   });
 
+  // Task 84: a mix (Rock's drums, K-pop's notes) on the starters is about as loud as Party.
+  test('a mixed beat is about as loud as Party', async ({ page }) => {
+    const starters = await page.evaluate(async () => (await import(new URL('js/pattern.js', location.href).href)).STARTERS);
+    const mix = ['rock-kick', 'rock-snare', 'tom', 'crash', '808', 'bell', 'synth', 'hey'];
+    for (const { rows, bpm } of starters) {
+      const diff = (await lab(page, 'beatLoudness', mix, rows, bpm)) - (await lab(page, 'beatLoudness', 'party', rows, bpm));
+      expect(Math.abs(diff), `${diff.toFixed(1)} dB from Party`).toBeLessThan(2.5);
+    }
+  });
+
+  // Task 84: the key slider moves a note along E minor (E F# G A B C D).
+  test('a lifted note sounds that many steps of E minor higher or lower', async ({ page }) => {
+    const cases = [
+      ['rock-bass', 0, 2, 49.0], // E1 up 2: G1
+      ['808', 8, -1, 61.74], // C2 down 1: B1
+      ['bass', 0, 1, 61.74], // A1 up 1: B1
+      ['riff', 0, -1, 146.83], // E3 down 1: D3
+      ['guitar', 0, 1, 98.0], // E2 up 1 skips F# (a power chord's fifth would be C#): G2
+    ];
+    for (const [id, step, lift, hz] of cases) {
+      const heard = await lab(page, 'pitchOf', id, step, 0.15, lift);
+      const cents = 1200 * Math.log2(heard / hz);
+      expect(Math.abs(cents), `${id} ${lift > 0 ? '+' : ''}${lift} at step ${step}: ${heard.toFixed(1)} Hz, wanted ${hz}`).toBeLessThan(35);
+    }
+  });
+
   test('tuned sounds follow the chord loop, Em, C, G, D, in one key', async ({ page }) => {
     const expected = {
       guitar: [82.41, 65.41, 98.0, 73.42],
