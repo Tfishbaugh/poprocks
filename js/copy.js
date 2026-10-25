@@ -13,10 +13,11 @@ function drawRow(ctx, row, track, color) {
 }
 
 // A tiny picture of a beat: one line of dots per sound, in the sound's colour.
+// CSS keeps it 64 × 32; 9 to 12 rows draw a taller canvas into the same box (task 84).
 function miniPattern(beat) {
   const canvas = el('canvas', 'mini');
   canvas.width = 64;
-  canvas.height = 32;
+  canvas.height = beat.rows.length * 4;
   canvas.setAttribute('aria-hidden', 'true');
   const ctx = canvas.getContext('2d');
   const styles = getComputedStyle(document.documentElement);
