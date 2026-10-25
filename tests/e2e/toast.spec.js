@@ -36,12 +36,13 @@ function timeToasts() {
   document.addEventListener('DOMContentLoaded', watch);
 }
 
-// The next toast to close took about `ms`: a timer can run late on a busy machine, never early.
+// The next toast to close took about `ms`: a timer can run late on a busy machine, never early,
+// and never as late as the old times (3 s, 6 s).
 async function lasted(page, count, ms) {
   await expect.poll(() => page.evaluate(() => window.__toastMs.length), { timeout: ms + 3000 }).toBe(count);
   const took = await page.evaluate((at) => window.__toastMs[at], count - 1);
   expect(took).toBeGreaterThanOrEqual(ms - 50);
-  expect(took).toBeLessThan(ms + 600);
+  expect(took).toBeLessThan(ms + 400);
 }
 
 test('✕ closes a toast at once and runs its end: an effect’s Undo lets the old copy go', async ({ page }) => {
@@ -142,7 +143,7 @@ test('a note stays 2.5 s, and "Video deleted." stays 10 s with no ✕, even for 
   await lasted(page, 2, 10_000);
 });
 
-test('a "Try again" note stays 4 s', async ({ page }) => {
+test('a "Try again" note stays 4 s: no video made', async ({ page }) => {
   await page.addInitScript(timeToasts);
   await page.addInitScript(() => {
     const Real = window.MediaRecorder;
@@ -160,6 +161,45 @@ test('a "Try again" note stays 4 s', async ({ page }) => {
   await page.waitForTimeout(1000);
   await page.click('#rec-btn');
   await expect(showing(page)).toContainText('Try again');
+  await lasted(page, 1, 4000);
+});
+
+test('a "Try again" note stays 4 s: an effect that couldn’t be added', async ({ page }) => {
+  await page.addInitScript(timeToasts);
+  await page.addInitScript(() => {
+    const Real = window.MediaRecorder;
+    let count = 0;
+    window.MediaRecorder = class extends Real {
+      constructor(...args) {
+        count += 1;
+        if (count > 1) throw new DOMException('no', 'NotSupportedError');
+        super(...args);
+      }
+    };
+  });
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  await page.click('#watch-fx');
+  await expect(page.locator('#fx-tray')).toBeVisible();
+  await page.locator('#fx-filters button', { hasText: 'Gray' }).click();
+  await page.click('#fx-use');
+  await expect(showing(page)).toContainText('Couldn’t add the effect');
+  await lasted(page, 1, 4000);
+});
+
+test('a "Try again" note stays 4 s: a video that couldn’t be saved', async ({ page }) => {
+  await page.addInitScript(timeToasts);
+  await startApp(page);
+  await openCamera(page);
+  await record(page, 1);
+  await page.evaluate(() => {
+    URL.createObjectURL = () => {
+      throw new Error('no room');
+    };
+  });
+  await page.click('#watch-save');
+  await expect(showing(page)).toContainText('Couldn’t save');
   await lasted(page, 1, 4000);
 });
 
@@ -188,6 +228,18 @@ test('Escape closes a sheet over a toast first', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.locator('#copy-sheet')).toBeHidden();
   await expect(showing(page), 'the sheet closed first').toContainText('Beat cleared');
+});
+
+test('Escape closes Sounds over a toast first', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await startApp(page);
+  await page.click('#clear');
+  await expect(showing(page)).toContainText('Beat cleared');
+  await page.click('#sounds');
+  await expect(page.locator('#kits')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#kits')).toBeHidden();
+  await expect(showing(page), 'Sounds closed first').toContainText('Beat cleared');
 });
 
 test('Escape on a toast you Tab to sends focus back to Play', async ({ page }) => {
@@ -220,6 +272,8 @@ for (const size of SIZES) {
       for (const id of ['shorter', 'longer', 'shorter-tool', 'longer-tool']) {
         if (await page.locator(`#${id}`).isVisible()) expect(apart(box, await page.locator(`#${id}`).boundingBox()), `clear of #${id}`).toBe(true);
       }
+      const ring = await close.evaluate((node) => [getComputedStyle(node).getPropertyValue('--focus'), getComputedStyle(document.body).getPropertyValue('--bg')]);
+      expect(ring[0], 'its focus ring is the page colour, which shows on the toast').toBe(ring[1]);
       const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
       expect(wide, 'no sideways scroll').toBe(false);
     });
