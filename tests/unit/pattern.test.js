@@ -1,15 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  BAR, BPM_MAX, BPM_MIN, DEFAULT_KIT, MAX_STEPS, STARTERS, TRACKS, canDouble, clear, copyBeat, copyRow, createHistory,
-  double, emptyBeat, isEmpty, isOn, isValidBeat, longer, shorter, stepCount, surprise, toggle, withBpm, withKit,
+  BAR, BPM_MAX, BPM_MIN, DEFAULT_SOUNDS, LIFT_MAX, MAX_STEPS, MAX_TRACKS, MIN_TRACKS, STARTERS, canDouble, clear, copyBeat,
+  copyRow, createHistory, double, emptyBeat, isEmpty, isOn, isValidBeat, liftAt, longer, shorter, stepCount, surprise,
+  toggle, trackCount, withBpm, withLift, withSound, withSounds,
 } from '../../js/pattern.js';
-import { SOUNDS } from '../../js/sounds.js';
+import { kitById } from '../../js/sounds.js';
 
-test('there are 8 sounds and 16 steps', () => {
-  assert.equal(TRACKS, 8);
+const ids = (id) => kitById(id).sounds.map((sound) => sound.id);
+
+test('a beat starts with 8 rows of Party’s sounds and 16 steps, and may have up to 12 rows', () => {
+  assert.equal(MIN_TRACKS, 8);
+  assert.equal(MAX_TRACKS, 12);
   assert.equal(BAR, 16);
-  assert.equal(SOUNDS.length, TRACKS);
+  assert.equal(trackCount(emptyBeat()), MIN_TRACKS);
+  assert.deepEqual(emptyBeat().sounds, ids('party'));
+  assert.deepEqual(DEFAULT_SOUNDS, ids('party'));
 });
 
 test('toggle turns a pad on and off without touching the others', () => {
@@ -76,7 +82,7 @@ test('every starter beat is valid, has a kick, and has a name', () => {
 test('surprise gives a starter that differs from the beat on screen', () => {
   STARTERS.forEach((starter, i) => {
     [0, 0.5, 0.999].forEach((r) => {
-      const next = surprise(starter, () => r);
+      const next = surprise(copyBeat(starter), () => r);
       assert.ok(isValidBeat(next));
       assert.notDeepEqual(next.rows, starter.rows, `starter ${i}, random ${r}`);
     });
@@ -143,14 +149,12 @@ test('copying a sound puts its row onto another sound and leaves the rest', () =
   assert.ok(isEmpty({ rows: copied.rows.filter((_, t) => t !== 0 && t !== 3) }));
 });
 
-test('the kit rides along: copy, clear, surprise, longer and withKit keep it', () => {
-  const beat = withKit(toggle(emptyBeat(), 0, 0), 'rock');
-  assert.equal(copyBeat(beat).kit, 'rock');
-  assert.equal(clear(beat).kit, 'rock');
-  assert.equal(surprise(beat, () => 0).kit, 'rock');
-  assert.equal(longer(beat).kit, 'rock');
-  assert.equal(emptyBeat().kit, DEFAULT_KIT);
-  assert.equal(copyBeat({ bpm: 100, rows: emptyBeat().rows }).kit, DEFAULT_KIT, 'old beats are party');
+test('the sounds ride along: copy, clear, surprise, longer, shorter and ×2 keep them', () => {
+  const beat = withSound(withSounds(toggle(emptyBeat(), 0, 0), ids('rock')), 2, 'bell');
+  const sounds = [...ids('rock').slice(0, 2), 'bell', ...ids('rock').slice(3)];
+  [copyBeat(beat), clear(beat), surprise(beat, () => 0), longer(beat), shorter(longer(beat)), double(longer(beat))]
+    .forEach((next) => assert.deepEqual(next.sounds, sounds));
+  assert.deepEqual(copyBeat({ bpm: 100, rows: emptyBeat().rows }).sounds, DEFAULT_SOUNDS, 'beats without sounds are Party');
 });
 
 test('clear and surprise keep a long beat long', () => {
@@ -169,14 +173,80 @@ test('beats of 16, 32, 48 and 64 steps are valid; other lengths and mixed rows a
   mixed.rows[5] = '.'.repeat(16);
   assert.equal(isValidBeat(mixed), false);
   assert.equal(isValidBeat({ ...emptyBeat(), kit: 'Rock Kit!' }), false);
-  assert.equal(isValidBeat({ ...emptyBeat(), kit: 'kpop' }), true);
+  assert.equal(isValidBeat({ ...emptyBeat(), kit: 'kpop' }), true, 'old saves name a kit');
   [['rock'], 12, null, { toString: () => 'rock' }].forEach((kit) => assert.equal(isValidBeat({ ...emptyBeat(), kit }), false, String(kit)));
 });
 
 test('surprise can use a kit’s own starters', () => {
   const rock = [{ name: 'Rock 1', bpm: 120, rows: STARTERS[1].rows.map((r, i) => (i === 3 ? '................' : r)) }];
-  const next = surprise(withKit(emptyBeat(), 'rock'), () => 0, rock);
+  const next = surprise(withSounds(emptyBeat(), ids('rock')), () => 0, rock);
   assert.deepEqual(next.rows, rock[0].rows);
   assert.equal(next.bpm, 120);
-  assert.equal(next.kit, 'rock');
+  assert.deepEqual(next.sounds, ids('rock'));
+});
+
+// ---- Mix and match (task 84) ----
+
+test('withSound puts one sound on one row; withSounds puts a kit on every row, starting over past 8', () => {
+  const beat = withSound(emptyBeat(), 7, 'riff');
+  assert.deepEqual(beat.sounds, [...DEFAULT_SOUNDS.slice(0, 7), 'riff']);
+  const twelve = { ...emptyBeat(), rows: [...emptyBeat().rows, ...emptyBeat().rows.slice(0, 4)], sounds: [...DEFAULT_SOUNDS, ...DEFAULT_SOUNDS.slice(0, 4)] };
+  assert.deepEqual(withSounds(twelve, ids('kpop')).sounds, [...ids('kpop'), ...ids('kpop').slice(0, 4)]);
+});
+
+test('a saved beat may have 8 to 12 rows, each with a sound, but not wrong sounds', () => {
+  const rows = (n) => Array.from({ length: n }, () => '.'.repeat(16));
+  const beat = (n, extra = {}) => ({ bpm: 100, rows: rows(n), sounds: Array(n).fill('kick'), ...extra });
+  [8, 9, 12].forEach((n) => assert.ok(isValidBeat(beat(n)), String(n)));
+  [7, 13].forEach((n) => assert.equal(isValidBeat(beat(n)), false, String(n)));
+  assert.ok(isValidBeat({ bpm: 100, rows: rows(8) }), 'no sounds: an old save');
+  const bad = [Array(7).fill('kick'), 'kick', [...Array(7).fill('kick'), 'Kick!'], [...Array(7).fill('kick'), 7], [...Array(7).fill('kick'), 'x'.repeat(25)]];
+  bad.forEach((sounds) => assert.equal(isValidBeat(beat(8, { sounds })), false, JSON.stringify(sounds)));
+});
+
+// ---- The key slider (task 84): pitch rides with the notes ----
+
+test('withLift moves one note, whole steps from −4 to 4; liftAt reads it back', () => {
+  const beat = withLift(toggle(emptyBeat(), 5, 3), 5, 3, 2);
+  assert.equal(liftAt(beat, 5, 3), 2);
+  assert.equal(liftAt(beat, 5, 4), 0);
+  assert.equal(liftAt(withLift(beat, 5, 3, 9), 5, 3), LIFT_MAX);
+  assert.equal(liftAt(withLift(beat, 5, 3, -9), 5, 3), -LIFT_MAX);
+  assert.equal(liftAt(withLift(beat, 5, 3, 1.4), 5, 3), 1);
+});
+
+test('a note turned off forgets its lift, and a new note plays as written', () => {
+  const lifted = withLift(toggle(emptyBeat(), 5, 3), 5, 3, 3);
+  const off = toggle(lifted, 5, 3);
+  assert.equal(liftAt(off, 5, 3), 0);
+  assert.equal(liftAt(toggle(off, 5, 3), 5, 3), 0);
+});
+
+test('➕ ➖ ×2 and 📋 carry each note’s lift with it', () => {
+  const beat = withLift(toggle(emptyBeat(), 5, 3), 5, 3, -2);
+  assert.equal(liftAt(longer(beat), 5, 19), -2, '➕ copies the last 16');
+  assert.equal(longer(beat).pitch[5].length, 32);
+  assert.equal(shorter(longer(beat)).pitch[5].length, 16);
+  assert.equal(liftAt(double(longer(beat)), 5, 19), -2, '×2 repeats the first half');
+  const copied = copyRow(beat, 5, 6);
+  assert.equal(liftAt(copied, 6, 3), -2);
+  assert.notEqual(copied.pitch[6], copied.pitch[5], 'a copy, not the same list');
+  assert.equal(liftAt(clear(beat), 5, 3), 0);
+});
+
+test('a saved pitch must match its rows and stay from −4 to 4', () => {
+  const beat = emptyBeat();
+  assert.ok(isValidBeat(beat));
+  const bad = [[], beat.pitch.slice(1), beat.pitch.map((lane) => lane.slice(1)), beat.pitch.map((lane) => lane.map(() => 5)),
+    beat.pitch.map((lane) => lane.map(() => 0.5)), beat.pitch.map((lane) => lane.map(() => '1')), 'up'];
+  bad.forEach((pitch) => assert.equal(isValidBeat({ ...beat, pitch }), false, JSON.stringify(pitch).slice(0, 40)));
+  assert.deepEqual(copyBeat({ bpm: 100, rows: beat.rows }).pitch, beat.pitch, 'no pitch: every note as written');
+});
+
+test('🎲 on a beat with more than 8 rows leaves the extra rows empty', () => {
+  const nine = { ...emptyBeat(), rows: [...emptyBeat().rows, 'x'.repeat(16)], sounds: [...DEFAULT_SOUNDS, 'riff'], pitch: [...emptyBeat().pitch, Array(16).fill(1)] };
+  const next = surprise(nine, () => 0);
+  assert.equal(trackCount(next), 9);
+  assert.equal(next.rows[8], '.'.repeat(16));
+  assert.ok(isValidBeat(next));
 });

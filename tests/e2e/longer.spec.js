@@ -189,7 +189,7 @@ test('on a phone on its side, ❮ ❯ sit in the rail and ➕ is under More', as
   await page.click('#longer-tool');
   expect(await padCount(page)).toBe(256);
   await page.locator('#grid-wrap').evaluate((el) => { el.scrollLeft = 0; });
-  await page.locator('.sound').first().click();
+  await page.keyboard.press('Escape');
   await page.click('#strip-next');
   await expect.poll(() => uncovered(pad(page, 0, 16))).toBe(true);
 });
@@ -331,8 +331,11 @@ for (const size of SIZES) {
     await tool(page, 'clear');
     await expect(page.locator('#toast:not([hidden])')).toContainText('Beat cleared');
     const undo = await page.locator('#toast-action').boundingBox();
+    expect(Math.min(undo.width, undo.height), 'Undo is a big target').toBeGreaterThanOrEqual(44);
+    await expect(page.locator('#toast-action'), 'it shows it isn’t ready yet').not.toHaveCSS('opacity', '1');
     await page.mouse.click(undo.x + undo.width / 2, undo.y + undo.height / 2);
     expect(await litPads(page), 'the quick tap was not Undo').toBeLessThan(2);
+    if (await page.locator('#row-sheet').isVisible()) await page.click('#row-close'); // it went through to a name
     const words = await page.locator('#toast-msg').boundingBox();
     const at = [words.x + 4, words.y + words.height / 2];
     const caught = await page.evaluate(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('#toast')), at);

@@ -26,6 +26,8 @@ test('no camera or mic request before 🎥', async ({ page }) => {
   await page.click('#surprise');
   await page.click('.slot >> nth=2');
   await page.click('.sound >> nth=0');
+  await page.click('#row-sheet .row-sound >> nth=9');
+  await page.click('#row-close');
   expect(await cameraCalls(page)).toBe(0);
   await openCamera(page);
   expect(await cameraCalls(page)).toBe(1);

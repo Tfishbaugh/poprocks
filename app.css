@@ -25,6 +25,11 @@
   --c5: #0B6BCB;
   --c6: #4F46E5;
   --c7: #8E24AA;
+  /* Rows 9 to 12 (task 84, more rows): olive, brown, slate, red. */
+  --c8: #556F00;
+  --c9: #8B5A2B;
+  --c10: #44617B;
+  --c11: #C62828;
   --stage: #000000;
   --chip: #2A2140;
   --on-chip: #FFFFFF;
@@ -61,6 +66,10 @@
     --c5: #6CC8FF;
     --c6: #9AA8FF;
     --c7: #D59BFF;
+    --c8: #C2E05A;
+    --c9: #E2B48A;
+    --c10: #A9C1D9;
+    --c11: #FF8A80;
     color-scheme: dark;
   }
 }
@@ -241,7 +250,7 @@ button:disabled { cursor: default; opacity: 0.4; }
   min-height: 100%;
   width: max(calc(var(--names) + (100% - var(--names)) * var(--pages, 1)), calc(var(--names) + 44px * var(--steps, 16)));
   grid-template-columns: var(--names) repeat(var(--steps, 16), minmax(44px, 1fr));
-  grid-template-rows: repeat(8, minmax(44px, 1fr));
+  grid-template-rows: repeat(var(--tracks, 8), minmax(44px, 1fr)); /* 8 to 12 rows (task 84): grid.js sets --tracks */
 }
 
 .sound, .pad {
@@ -291,8 +300,9 @@ button:disabled { cursor: default; opacity: 0.4; }
     --turned: 1;
     --head: 64px;
     width: auto;
+    min-width: calc(44px * var(--tracks, 8)); /* task 84: 9 to 12 rows scroll sideways in the box on a phone */
     min-height: calc(var(--head) + (100% - var(--head)) * var(--pages, 1));
-    grid-template-columns: repeat(8, minmax(44px, 1fr));
+    grid-template-columns: repeat(var(--tracks, 8), minmax(44px, 1fr));
     grid-template-rows: var(--head) repeat(var(--steps, 16), minmax(48px, 1fr));
   }
 
@@ -307,6 +317,44 @@ button:disabled { cursor: default; opacity: 0.4; }
     box-shadow: inset 0 -5px 0 var(--color);
     padding-bottom: 4px;
   }
+}
+
+/* ---- More rows (task 84): ➕ Row sits after the last sound name, in More where that doesn't fit ---- */
+
+.add-row {
+  grid-row: var(--r);
+  grid-column: 1;
+  position: sticky;
+  left: calc(-1 * var(--gutter));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 3px dashed var(--muted);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.tools #add-row-tool { display: none; }
+
+@media (orientation: portrait) {
+  .add-row { grid-row: 1; grid-column: var(--tc); top: -4px; left: auto; }
+}
+
+/* 🗑 Remove row: in "Sound for row N" under the sounds, away from ✕ Close; only above 8 rows. */
+.row-extra { display: flex; justify-content: center; margin-top: 12px; }
+.remove-row { border: 2px solid var(--muted); background: var(--bg); }
+
+/* Phones and short windows: no room after the names, so ➕ Row joins the tools (under More on a phone). */
+@media (orientation: portrait) and (max-width: 599px), (orientation: landscape) and (max-height: 699px) {
+  .add-row { display: none; }
+  .tools #add-row-tool { display: inline-flex; }
 }
 
 /* ---- Longer beats: ❮, the map, ❯, ➖ and ➕ above the grid (task 80, lane A) ---- */
@@ -415,6 +463,7 @@ button:disabled { cursor: default; opacity: 0.4; }
 @media (orientation: landscape) and (max-height: 520px) {
   .sheet-card { width: min(680px, 100%); }
   .copy-sounds { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .copy-sounds:has(> :nth-child(9)) { grid-template-columns: repeat(6, minmax(0, 1fr)); } /* task 84: 9 to 12 rows */
   .copy-slot { min-height: 64px; }
 }
 
@@ -804,6 +853,18 @@ button:disabled { cursor: default; opacity: 0.4; }
 .toast, .toast.fresh .toast-action { pointer-events: none; }
 .toast-action { pointer-events: auto; }
 
+/* Meanwhile Undo fades in, so it doesn't look ready before it is. */
+.toast.fresh .toast-action { opacity: 0.5; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast.fresh .toast-action { animation: toast-ready 0.8s ease-in forwards; }
+}
+
+@keyframes toast-ready {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
 /* ---- Tour (js/tour.js): a lit control, everything else dimmed, and a card beside it ---- */
 
 .tour { position: fixed; z-index: 20; inset: 0; }
@@ -947,4 +1008,123 @@ button:disabled { cursor: default; opacity: 0.4; }
   .kit-card { flex-direction: column; justify-content: center; min-height: 0; padding: 8px; gap: 2px; }
   .kit-card .ico { font-size: 36px; }
   .kit-sounds { max-width: none; margin: 0; text-align: center; }
+}
+
+/* ---- Press and hold a note: the pop and the note panel (task 84) ---- */
+
+.pad.held { transform: scale(1.15); box-shadow: 0 0 0 4px var(--text); }
+
+.note-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.note-panel::backdrop { background: rgb(0 0 0 / 0.2); }
+
+.note-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 2px solid var(--muted);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.3);
+}
+
+.note-title { margin: 0; font-size: 14px; font-weight: 800; white-space: nowrap; }
+.note-pitch { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.note-pitch[hidden] { display: none; }
+.note-end { font-size: 18px; line-height: 1; color: var(--muted); }
+
+/* ↕ up is higher, so the slider runs bottom to top. */
+.note-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 48px;
+  height: 200px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* A big round thumb a finger can find, on a thick track. */
+.note-slider::-webkit-slider-runnable-track { width: 14px; border-radius: 7px; background: var(--pad-alt); }
+.note-slider::-moz-range-track { width: 14px; border-radius: 7px; background: var(--pad-alt); }
+
+.note-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 40px;
+  height: 40px;
+  margin-left: -13px;
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+.note-slider::-moz-range-thumb {
+  width: 32px;
+  height: 32px;
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .note-slider { height: 150px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pad.held { transform: none; }
+}
+
+/* ---- Mix and match (task 84): a ▾ on each name, and "Sound for row N" ---- */
+
+.sound .pick { position: absolute; right: 4px; bottom: 1px; font-size: 14px; line-height: 1; color: var(--text); opacity: 0.7; }
+
+.row-kits { display: flex; flex-direction: column; gap: 12px; }
+.row-kit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.row-kit-name { grid-column: 1 / -1; margin: 0; font-size: 16px; font-weight: 800; color: var(--muted); }
+
+.row-sound {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--pad-off);
+  color: var(--text);
+}
+
+.row-sound .ico { font-size: 22px; }
+.row-sound[aria-pressed="true"] { outline: 4px solid var(--text); outline-offset: -4px; background: var(--pad-now); }
+.row-sound[aria-pressed="true"] .lbl::after { content: ' ✓'; }
+
+/* A phone on its side: each kit on one line, so all three fit with little scrolling. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .row-kit { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .row-kit-name { font-size: 14px; }
+}
+
+/* ---- The key slider (task 84): a moved note shows ↑2 or ↓1 in its corner ---- */
+
+.pad { position: relative; }
+
+.pad.on[data-lift]:not([data-lift=""])::after {
+  content: attr(data-lift);
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--on-c);
 }

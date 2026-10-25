@@ -137,8 +137,8 @@ test.describe('picking sounds', () => {
     await page.click('#surprise');
     const lit = await page.locator('.pad.on').evaluateAll((pads) => pads.map((p) => `${p.dataset.track}:${p.dataset.step}`).sort());
     const starters = await page.evaluate(async () => {
-      const { kitStarters } = await import(new URL('js/sounds.js', location.href).href);
-      return kitStarters('rock').map((s) => s.rows.flatMap((row, track) => [...row].flatMap((c, step) => (c === 'x' ? [`${track}:${step}`] : []))).sort());
+      const { kitById } = await import(new URL('js/sounds.js', location.href).href);
+      return kitById('rock').starters.map((s) => s.rows.flatMap((row, track) => [...row].flatMap((c, step) => (c === 'x' ? [`${track}:${step}`] : []))).sort());
     });
     expect(starters).toContainEqual(lit);
     expect(await rowNames(page)).toEqual(ROCK);
@@ -205,10 +205,10 @@ for (const size of SIZES) {
     await openSounds(page);
     await expect(page.locator('#kits')).toBeVisible();
     expect(await offscreen(page, '.kit-card, #kits-close')).toEqual([]);
-    const small = await page.locator('#kits .lbl, .kit-credit').evaluateAll((nodes) => nodes
+    const small = await page.locator('#kits .lbl, #kits .kit-credit').evaluateAll((nodes) => nodes
       .filter((node) => parseFloat(getComputedStyle(node).fontSize) < 14).map((node) => node.textContent));
     expect(small).toEqual([]);
-    await expect(page.locator('.kit-credit')).toContainText(/sounds by/i);
+    await expect(page.locator('#kits .kit-credit')).toContainText(/sounds by/i);
   });
 }
 
@@ -274,6 +274,36 @@ test.describe('how the kits sound', () => {
       expect(everything, kit).toBeLessThan(0.96);
       expect(everything, `${kit} still sounds`).toBeGreaterThan(0.3);
       for (const step of [0, 8, 16, 24]) expect(await lab(page, 'peakOfAll', kit, step), `${kit} at ${step}`).toBeLessThan(0.96);
+    }
+  });
+
+  // Task 84: a mix (Rock's drums, K-pop's notes) on the starters is as close to Party as a kit must be.
+  // Tom and Crash were turned down for it: on the busy drum rows they were far louder than Clap and Hat.
+  test('a mixed beat is about as loud as Party', async ({ page }) => {
+    const starters = await page.evaluate(async () => (await import(new URL('js/pattern.js', location.href).href)).STARTERS);
+    const mix = ['rock-kick', 'rock-snare', 'tom', 'crash', '808', 'bell', 'synth', 'hey'];
+    const diffs = [];
+    for (const { rows, bpm } of starters) {
+      diffs.push((await lab(page, 'beatLoudness', mix, rows, bpm)) - (await lab(page, 'beatLoudness', 'party', rows, bpm)));
+    }
+    const mean = diffs.reduce((sum, d) => sum + d, 0) / diffs.length;
+    expect(Math.abs(mean), `on average ${mean.toFixed(1)} dB from Party`).toBeLessThan(1.5);
+    diffs.forEach((d, i) => expect(Math.abs(d), `starter ${i}: ${d.toFixed(1)} dB`).toBeLessThan(2.5));
+  });
+
+  // Task 84: the key slider moves a note along E minor (E F# G A B C D).
+  test('a lifted note sounds that many steps of E minor higher or lower', async ({ page }) => {
+    const cases = [
+      ['rock-bass', 0, 2, 49.0], // E1 up 2: G1
+      ['808', 8, -1, 61.74], // C2 down 1: B1
+      ['bass', 0, 1, 61.74], // A1 up 1: B1
+      ['riff', 0, -1, 146.83], // E3 down 1: D3
+      ['guitar', 0, 1, 98.0], // E2 up 1 skips F# (a power chord's fifth would be C#): G2
+    ];
+    for (const [id, step, lift, hz] of cases) {
+      const heard = await lab(page, 'pitchOf', id, step, 0.15, lift);
+      const cents = 1200 * Math.log2(heard / hz);
+      expect(Math.abs(cents), `${id} ${lift > 0 ? '+' : ''}${lift} at step ${step}: ${heard.toFixed(1)} Hz, wanted ${hz}`).toBeLessThan(35);
     }
   });
 

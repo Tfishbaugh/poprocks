@@ -79,6 +79,8 @@
           </div>
           <!-- Sound kits (task 80, lane B): on a phone on its side, Sounds lives here, not in the rail. -->
           <button id="sounds-tool" class="btn tool rail-only" type="button" aria-haspopup="dialog" aria-label="Sounds: Party"><span class="ico" aria-hidden="true">🎉</span><span class="lbl">Sounds</span></button>
+          <!-- More rows (task 84): on phones ➕ Row lives here; elsewhere it sits after the last sound name. -->
+          <button id="add-row-tool" class="btn tool" type="button" aria-label="Add a row"><span class="ico" aria-hidden="true">➕</span><span class="lbl">Row</span></button>
           <button id="last-video" class="btn tool" type="button" hidden><span class="ico" aria-hidden="true">🎬</span><span class="lbl">My video</span></button>
           <button id="help" class="btn tool" type="button"><span class="ico" aria-hidden="true">❓</span><span class="lbl">Help</span></button>
         </div>
@@ -163,6 +165,37 @@
       </div>
       <div class="kit-cards" role="group" aria-labelledby="kits-title"></div>
       <p class="kit-credit"></p>
+    </div>
+  </dialog>
+
+  <!-- Sound for row N (task 84): a tap on a row's name opens it. js/picker.js fills in every kit's
+       sounds; more rows put 🗑 Remove row in #row-extra. -->
+  <dialog id="row-sheet" class="kits row-sheet" aria-labelledby="row-title">
+    <div class="kits-card">
+      <div class="kits-head">
+        <h2 id="row-title">Sound for row 1</h2>
+        <button id="row-close" class="btn tool kits-close row-close" type="button"><span class="ico" aria-hidden="true">✕</span><span class="lbl">Close</span></button>
+      </div>
+      <div class="row-kits"></div>
+      <div id="row-extra" class="row-extra" hidden>
+        <button id="remove-row" class="btn remove-row" type="button"><span class="ico" aria-hidden="true">🗑</span><span class="lbl">Remove row</span></button>
+      </div>
+      <p class="kit-credit"></p>
+    </div>
+  </dialog>
+
+  <!-- The note panel (task 84): press and hold a square, then lift. ↕ is the key slider (js/note.js);
+       held notes put ◀ ▶ in #note-length. -->
+  <dialog id="note-panel" class="note-panel" aria-labelledby="note-title">
+    <div class="note-card">
+      <p id="note-title" class="note-title"></p>
+      <div id="note-pitch" class="note-pitch">
+        <span class="note-end" aria-hidden="true">▲</span>
+        <input id="note-slider" class="note-slider" type="range" min="-4" max="4" step="1" value="0" aria-label="Higher or lower">
+        <span class="note-end" aria-hidden="true">▼</span>
+      </div>
+      <div id="note-length" class="note-length" hidden></div>
+      <button id="note-done" class="btn tool" type="button"><span class="ico" aria-hidden="true">✓</span><span class="lbl">Done</span></button>
     </div>
   </dialog>
 
