@@ -85,10 +85,10 @@ test('the tour runs on first open, one control at a time, and never again', asyn
 
 test('the last step says Got it! and has no Skip', async ({ page }) => {
   await start(page);
-  for (let i = 0; i < 7; i += 1) await page.click('.tour-next');
+  for (let i = 0; i < 8; i += 1) await page.click('.tour-next');
   await expect(page.locator('.tour-next')).toHaveText('Got it!');
   await expect(page.locator('.tour-skip')).toBeHidden();
-  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(8);
+  await expect(page.locator('.tour-dots .tour-dot')).toHaveCount(9);
 });
 
 const ENDINGS = {
@@ -156,6 +156,7 @@ test('a control that is there gets its step; a missing, hidden or vanished one i
   expect(await stepName(page)).toBe('slots');
   await page.click('.tour-next');
   expect(await stepName(page), 'the hidden Sounds button is skipped').toBe('names');
+  await page.click('.tour-next');
   await page.click('.tour-next');
   await page.click('.tour-next');
   expect(await stepName(page)).toBe('longer');
@@ -265,13 +266,13 @@ test('on a phone on its side, Sounds and ➕ point at More, where they are folde
     return spot.x <= more.x && spot.x + spot.width >= more.x + more.width;
   };
   await expect.poll(ringsMore, { message: 'the lit ring sits around More' }).toBe(true);
-  for (let i = 0; i < 3; i += 1) await page.click('.tour-next');
+  for (let i = 0; i < 4; i += 1) await page.click('.tour-next');
   expect(await stepName(page)).toBe('longer');
   await expect(page.locator('.tour-text')).toHaveText('Make it longer: tap More');
 });
 
-// Task 84: kids who already did the tour see only its 2 new steps, once.
-test('after the old tour, only the new steps show, once: tap a name, hold a note', async ({ page }) => {
+// Task 84: kids who already did the tour see only its 3 new steps, once.
+test('after the old tour, only the new steps show, once: tap a name, hold a note, slide it', async ({ page }) => {
   await page.addInitScript((key) => { if (!sessionStorage.getItem('again')) localStorage.setItem(key, '["beats","watch"]'); }, TOUR_KEY);
   await start(page);
   await expect(page.locator('.tour-text')).toHaveText('Tap a name to change sounds');
