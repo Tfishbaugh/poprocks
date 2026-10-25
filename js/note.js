@@ -32,7 +32,8 @@ export function createNotePanel(dialog, { onLift, onClose }) {
 
   function place() {
     const view = { width: innerWidth, height: innerHeight };
-    const { left, top } = placeCard(note.pad.getBoundingClientRect(), card.getBoundingClientRect(), view);
+    const box = note.box ?? note.pad.getBoundingClientRect(); // held notes: the steps a note grows into
+    const { left, top } = placeCard(box, card.getBoundingClientRect(), view);
     dialog.style.left = `${left}px`;
     dialog.style.top = `${top}px`;
   }

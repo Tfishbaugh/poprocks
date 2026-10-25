@@ -17,7 +17,7 @@ const corners = (locator) => locator.evaluate((node) => {
 
 // A plain note on the Bass row at step 3, then Shift+→ until it holds `steps` steps.
 async function holdBass(page, steps, start = 2) {
-  await page.click('#clear');
+  if (await page.locator('#clear').isEnabled()) await page.click('#clear');
   await pad(page, 5, start).click();
   await pad(page, 5, start).focus();
   for (let i = 1; i < steps; i += 1) await page.keyboard.press('Shift+ArrowRight');
@@ -176,5 +176,174 @@ test.describe('held notes on the grid', () => {
     await holdBass(page, 4, 14);
     expect(await lit(page, 5)).toEqual([14, 15, 16, 17]);
     expect(await corners(pad(page, 5, 16))).toMatchObject({ left: 0, right: 0 });
+  });
+});
+
+// ---- Press, hold and slide ----
+
+async function center(locator) {
+  const box = await locator.boundingBox();
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+// A mouse press on `from`, held `ms` (0: it drags right away), slid to `to`, and lifted there.
+async function mouseSlide(page, from, to, ms = 0) {
+  const [a, b] = [await center(from), await center(to)];
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  if (ms) await page.waitForTimeout(ms);
+  await page.mouse.move(b.x, b.y, { steps: 8 });
+  await page.mouse.up();
+}
+
+async function mouseHold(page, locator) {
+  const a = await center(locator);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+}
+
+// Real touch input through Chromium's own gesture handling, so an unheld swipe really scrolls.
+async function finger(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+  return async function slide(from, to, { hold = 0, moves = 8, gap = 20 } = {}) {
+    await send('touchStart', [from]);
+    if (hold) await page.waitForTimeout(hold);
+    for (let i = 1; i <= moves; i += 1) {
+      await send('touchMove', [{ x: from.x + ((to.x - from.x) * i) / moves, y: from.y + ((to.y - from.y) * i) / moves }]);
+      await page.waitForTimeout(gap);
+    }
+    await send('touchEnd', []);
+  };
+}
+
+const panel = (page) => page.locator('#note-panel');
+const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+test.describe('stretching with a mouse', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await startApp(page);
+    await page.click('#clear');
+  });
+
+  test('press, hold and slide makes one bar, opens no panel, and is one ↩', async ({ page }) => {
+    await mouseSlide(page, pad(page, 5, 2), pad(page, 5, 5), 350);
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+    await expect(panel(page)).toBeHidden();
+    await expect(pad(page, 5, 3)).toHaveClass(/join-prev/);
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([]);
+  });
+
+  test('a mouse can drag right away, without holding first', async ({ page }) => {
+    await mouseSlide(page, pad(page, 6, 4), pad(page, 6, 7));
+    expect(await lit(page, 6)).toEqual([4, 5, 6, 7]);
+    await expect(panel(page)).toBeHidden();
+  });
+
+  test('a bar grabbed anywhere moves its end as far as the finger; sliding back shortens it', async ({ page }) => {
+    await holdBass(page, 4); // steps 3 to 6
+    const [from, ahead, back] = [await center(pad(page, 5, 3)), await center(pad(page, 5, 5)), await center(pad(page, 5, 1))];
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.waitForTimeout(350);
+    await page.mouse.move(ahead.x, ahead.y, { steps: 6 });
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5, 6, 7]);
+    await page.mouse.move(back.x, back.y, { steps: 6 });
+    await page.mouse.up();
+    expect(await lit(page, 5)).toEqual([2, 3]);
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+  });
+
+  test('lifting without a slide opens ◀ ▶: each tap is a step, no dragging, one ↩ for the visit', async ({ page }) => {
+    await mouseHold(page, pad(page, 5, 2));
+    await expect(panel(page)).toBeVisible();
+    const [shorter, longer] = [page.getByRole('button', { name: 'Shorter note' }), page.getByRole('button', { name: 'Longer note' })];
+    await expect(shorter).toHaveAttribute('aria-disabled', 'true');
+    for (const target of [shorter, longer]) {
+      const box = await target.boundingBox();
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(48);
+    }
+    await longer.click();
+    await longer.click();
+    expect(await lit(page, 5)).toEqual([2, 3, 4]);
+    await expect(page.locator('#sr-status')).toHaveText('Held for 3 steps.');
+    await shorter.click();
+    expect(await lit(page, 5)).toEqual([2, 3]);
+    await page.click('#note-done');
+    await expect(panel(page)).toBeHidden();
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([], 'the note the hold made and its stretch go in one ↩');
+  });
+
+  test('▶ stops at the next note', async ({ page }) => {
+    await pad(page, 5, 4).click();
+    await mouseHold(page, pad(page, 5, 2));
+    const longer = page.getByRole('button', { name: 'Longer note' });
+    await longer.click();
+    await expect(longer).toHaveAttribute('aria-disabled', 'true');
+    await longer.click({ force: true });
+    expect(await lit(page, 5)).toEqual([2, 3, 4]);
+    await expect(pad(page, 5, 4)).not.toHaveClass(/join-prev/);
+  });
+
+  test('the panel keeps clear of the steps a note grows into', async ({ page }) => {
+    await mouseHold(page, pad(page, 5, 6));
+    await expect(panel(page)).toBeVisible();
+    const card = await page.locator('.note-card').boundingBox();
+    for (const step of [6, 7, 8, 9]) expect(overlaps(card, await pad(page, 5, step).boundingBox()), `step ${step + 1}`).toBe(false);
+  });
+});
+
+test.describe('stretching with a finger', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+  test.beforeEach(async ({ page }) => {
+    await startApp(page);
+    await page.click('#more');
+    await page.click('#clear');
+  });
+
+  test('press, hold and slide makes one bar, the page doesn’t scroll, and it’s one ↩', async ({ page }) => {
+    const slide = await finger(page);
+    const top = await page.locator('#grid-wrap').evaluate((wrap) => wrap.scrollTop);
+    await slide(await center(pad(page, 5, 2)), await center(pad(page, 5, 5)), { hold: 400 });
+    expect(await lit(page, 5)).toEqual([2, 3, 4, 5]);
+    await expect(panel(page)).toBeHidden();
+    expect(await page.locator('#grid-wrap').evaluate((wrap) => wrap.scrollTop)).toBe(top);
+    await page.click('#more');
+    await page.click('#undo');
+    expect(await lit(page, 5)).toEqual([]);
+  });
+
+  test('a quick swipe still scrolls, and lights nothing', async ({ page }) => {
+    const wrap = page.locator('#grid-wrap');
+    const scrolled = () => wrap.evaluate((node) => Math.round(node.scrollTop));
+    await page.emulateMedia({ reducedMotion: 'reduce' }); // ➕ jumps to its new steps at once
+    await page.click('#longer');
+    const top = await scrolled();
+    expect(top).toBeGreaterThan(100);
+    const slide = await finger(page);
+    const from = await center(pad(page, 3, 20));
+    await slide(from, { x: from.x, y: from.y + 300 }, { moves: 6, gap: 10 });
+    await expect.poll(scrolled).toBeLessThan(top - 50);
+    expect(await page.locator('.pad.on').count()).toBe(0);
+    await expect(panel(page)).toBeHidden();
+  });
+
+  test('hold and lift, then tap ◀ ▶: no dragging needed', async ({ page }) => {
+    const slide = await finger(page);
+    const at = await center(pad(page, 1, 3));
+    await slide(at, at, { hold: 400, moves: 1 });
+    await expect(panel(page)).toBeVisible();
+    await page.getByRole('button', { name: 'Longer note' }).tap();
+    await page.getByRole('button', { name: 'Longer note' }).tap();
+    expect(await lit(page, 1)).toEqual([3, 4, 5]);
+    await page.locator('#note-done').tap();
+    await expect(panel(page)).toBeHidden();
   });
 });

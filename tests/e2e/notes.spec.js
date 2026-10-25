@@ -30,13 +30,16 @@ test('press and hold a tuned square, then lift: the note panel opens and the squ
   await expect(pad(page, 5, 2), 'the hold’s click didn’t toggle it back').toHaveAttribute('aria-pressed', 'true');
 });
 
-test('a quick tap still just toggles, and holding a drum opens nothing', async ({ page }) => {
+test('a quick tap still just toggles, and holding a drum opens the panel without the slider', async ({ page }) => {
   await pad(page, 5, 2).click();
   await expect(pad(page, 5, 2)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#note-panel')).toBeHidden();
+  // Held notes (task 84): every sound gets ◀ ▶; only tuned ones get the key slider.
   await holdAndLift(page, pad(page, 1, 2));
-  await expect(page.locator('#note-panel')).toBeHidden();
-  await expect(pad(page, 1, 2)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#note-panel')).toBeVisible();
+  await expect(page.locator('#note-pitch')).toBeHidden();
+  await expect(page.locator('#note-length')).toBeVisible();
+  await expect(pad(page, 1, 2)).toHaveAttribute('aria-pressed', 'true');
 });
 
 for (const way of ['Escape', 'Back', 'a tap outside']) {

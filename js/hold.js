@@ -38,7 +38,6 @@ export function createHold(root, { onHold = () => {}, onMove = () => {}, onLift 
   }
 
   function onDown(event) {
-    swallow = false;
     const pad = event.target.closest('.pad');
     if (press || !pad || !event.isPrimary || event.button > 0) return;
     press = { pad, id: event.pointerId, x: event.clientX, y: event.clientY, held: false, moved: false };
@@ -47,7 +46,10 @@ export function createHold(root, { onHold = () => {}, onMove = () => {}, onLift 
 
   function onPointerMove(event) {
     if (event.pointerId !== press?.id) return;
-    if (!press.held && Math.hypot(event.clientX - press.x, event.clientY - press.y) > SLOP) return end();
+    const mouse = event.pointerType === 'mouse';
+    // A mouse doesn't scroll by dragging, so it can drag right away: leaving the square holds it.
+    if (!press.held && mouse && padUnder(event) !== press.pad) hold();
+    if (!press.held && !mouse && Math.hypot(event.clientX - press.x, event.clientY - press.y) > SLOP) return end();
     if (!press.held) return;
     const pad = padUnder(event);
     press.moved ||= pad !== press.pad;
@@ -70,19 +72,21 @@ export function createHold(root, { onHold = () => {}, onMove = () => {}, onLift 
     if (held) onCancel(noteOf(pad));
   }
 
-  // A hold's own click never toggles the square. If the browser sends none, the next press resets it.
+  // A hold's own click never toggles the square, nor closes the panel it opened: on touch it lands
+  // where the finger lifted, on the panel's backdrop (task 84). If none comes, the next press resets it.
   function onClick(event) {
-    if (!swallow) return;
+    if (!swallow || event.detail === 0) return;
     swallow = false;
     event.stopImmediatePropagation();
     event.preventDefault();
   }
 
+  window.addEventListener('pointerdown', () => { swallow = false; }, true);
   root.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onPointerCancel);
-  root.addEventListener('click', onClick, true);
+  window.addEventListener('click', onClick, true);
   // Once held, a finger's slide belongs to the hold, not a scroll; a long press opens no menu.
   root.addEventListener('touchmove', (event) => { if (press?.held) event.preventDefault(); }, { passive: false });
   root.addEventListener('contextmenu', (event) => { if (press) event.preventDefault(); });

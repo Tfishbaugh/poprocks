@@ -1,7 +1,7 @@
 import {
   SOUNDS, TUNED, audioSupported, createEngine, kitById, kitStarters, setAudioSession, useKit,
 } from './sounds.js';
-import { createScheduler } from './scheduler.js';
+import { createScheduler, stepDuration } from './scheduler.js';
 import {
   BAR, BPM_MAX, BPM_MIN, BPM_STEP, MAX_STEPS, canDouble, clear, copyBeat, copyRow, createHistory, double, isEmpty,
   isOn, longer, shorter, stepCount, surprise, toggle, withBpm, withKit,
@@ -17,7 +17,7 @@ import {
 import { fileName, saveVideo } from './save.js';
 import { initTour, startTour, tourOnce } from './tour.js';
 import { createEffects } from './effects.js';
-import { createHoldPlayer } from './holds.js';
+import { createHoldPlayer, createNotePreview } from './holds.js';
 import { createStretch } from './stretch.js';
 import { createHold } from './hold.js';
 import { createNotePanel } from './note.js';
@@ -49,6 +49,7 @@ let screen = 'start';
 let engine = null;
 let scheduler = null;
 let holdPlayer = null;
+let notePreview = null;
 let frame = 0;
 let lastTouch = 0;
 let camera = null;
@@ -347,13 +348,28 @@ function onHold() {
   noteVisit = { pushed: false };
 }
 
-// A lift without a slide opens the panel. Until held notes add ◀ ▶, only tuned sounds have one.
+// Held notes (task 84): the hold makes an empty square a note, and a slide stretches it.
+function onHoldNote(note) {
+  onHold();
+  stretch.hold(note);
+}
+
+// A lift without a slide opens the panel, with ◀ ▶ for every sound and the slider for tuned ones.
+// It keeps clear of the steps the note can grow into.
 function onLift(note, { moved }) {
-  if (moved || !note || !TUNED.has(SOUNDS[note.track].id)) return endNoteVisit();
-  if (!isOn(beat(), note.track, note.step)) editNote(toggle(beat(), note.track, note.step));
-  const label = `${SOUNDS[note.track].label}, step ${note.step + 1}`;
-  notePanel.open(note, { lift: 0, tuned: true, label });
+  if (moved) stretch.slid();
+  if (moved || !note) return endNoteVisit();
+  const { id, label } = SOUNDS[note.track];
+  stretch.open(note);
+  notePanel.open({ ...note, box: stretch.room(note) }, { lift: 0, tuned: TUNED.has(id), label: `${label}, step ${note.step + 1}` });
   history.pushState({ poprocks: 'note' }, '');
+}
+
+// A held note's sound, as the beat would play it, while the beat is stopped.
+function previewNote(track, row, start) {
+  if (!engine || scheduler.playing) return;
+  notePreview ??= createNotePreview(engine);
+  notePreview(row, SOUNDS[track].id, start, stepDuration(beat().bpm));
 }
 
 function endNoteVisit() {
@@ -730,16 +746,18 @@ function wakeAudio() {
 }
 
 const grid = createGrid($('grid'), { onToggle, onSound });
-// Held notes (task 84): Shift+→ and Shift+← stretch the focused note, one ↩ a press.
-createStretch({
+// Held notes (task 84): a slide or ◀ ▶ shares the hold's one ↩; Shift+→ and Shift+← are one each.
+const stretch = createStretch({
   root: $('grid'),
+  slot: $('note-length'),
   turned: () => grid.turned(),
   beat,
   commit,
+  edit: editNote,
   announce: (text) => { $('sr-status').textContent = text; },
+  preview: previewNote,
 });
-// Held notes (PR 3) add onHold and onMove hooks here: the hold's start and the finger's slide.
-createHold($('grid'), { onHold, onLift, onCancel: endNoteVisit });
+createHold($('grid'), { onHold: onHoldNote, onMove: (note) => stretch.move(note), onLift, onCancel: endNoteVisit });
 const notePanel = createNotePanel($('note-panel'), { onLift: onNoteLift, onClose: onNoteClosed });
 const kitPicker = createKitPicker($('kits'), { onPick: onPickKit, onClose: onKitsClosed });
 const effects = createEffects({ audio: () => engine.ctx, format, onMade: useVideo, toast });

@@ -5,14 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  RINGS, createHoldPlayer, cue, holdTo, noteEnd, noteStart, removeNote, stretchLimit, tidy, tidyRow,
+  createHoldPlayer, createNotePreview, cue, holdTo, noteEnd, noteStart, removeNote, stretchLimit, tidy, tidyRow,
 } from '../../js/holds.js';
 import {
   copyBeat, copyRow, double, emptyBeat, isEmpty, isOn, isValidBeat, longer, shorter, toggle,
 } from '../../js/pattern.js';
 import { STORAGE_KEY, loadState } from '../../js/slots.js';
 import { INTERVAL_MS, START_DELAY, createScheduler, stepDuration } from '../../js/scheduler.js';
-import { CAP, KITS } from '../../js/sounds.js';
+import { CAP, TUNED } from '../../js/sounds.js';
 
 const EPS = 1e-9;
 const withRow = (row, track = 5) => {
@@ -112,11 +112,9 @@ test('loading tidies stray holds, and old saves load as they are', () => {
 
 // ---- Which sounds ring ----
 
-test('the tuned sounds ring and the rest roll, and every ringing id is a real sound', () => {
-  const ids = new Set(KITS.flatMap((kit) => kit.sounds.map((sound) => sound.id)));
-  RINGS.forEach((id) => assert.ok(ids.has(id), id));
-  ['guitar', 'synth', 'chug', 'bass', 'rock-bass', '808', 'riff', 'bell'].forEach((id) => assert.ok(RINGS.has(id), id));
-  ['kick', 'snare', 'hat', 'cowbell', 'laser', 'crash', 'hey', 'snap'].forEach((id) => assert.ok(!RINGS.has(id), id));
+test('the 8 tuned sounds ring; drums and effects roll', () => {
+  ['guitar', 'synth', 'chug', 'bass', 'rock-bass', '808', 'riff', 'bell'].forEach((id) => assert.ok(TUNED.has(id), id));
+  ['kick', 'snare', 'hat', 'cowbell', 'laser', 'crash', 'hey', 'snap'].forEach((id) => assert.ok(!TUNED.has(id), id));
 });
 
 test('each step’s cue: start, keep, play again on a chord change, end', () => {
@@ -282,4 +280,27 @@ test('in dark mode a held bar stands out 4.5:1 from the empty squares around it,
   rows.forEach((c) => ['pad-off', 'pad-alt'].forEach((bg) => {
     assert.ok(ratio(dark[c], dark[bg]) >= 4.5, `--${c} on --${bg}: ${ratio(dark[c], dark[bg]).toFixed(2)}:1`);
   }));
+});
+
+test('a preview plays one note for its length from now, and the next preview ends it', () => {
+  const log = [];
+  const engine = {
+    ctx: { currentTime: 10 },
+    play: (id, time, step) => log.push({ type: 'hit', id, time, step }),
+    hold(id, time, step) {
+      const note = { type: 'hold', id, time, step, offs: [] };
+      log.push(note);
+      return { release: (off) => note.offs.push(off) };
+    },
+  };
+  const preview = createNotePreview(engine);
+  preview('..x---..', 'bass', 2, 0.1);
+  const [held] = log;
+  assert.equal(held.step, 2);
+  assert.ok(Math.abs(held.time - 10.02) < EPS);
+  assert.ok(Math.abs(held.offs[0] - 10.42) < EPS, 'off after 4 steps');
+  engine.ctx.currentTime = 10.1;
+  preview('..x---..', 'snare', 2, 0.1);
+  assert.ok(Math.abs(held.offs[1] - 10.12) < EPS, 'the next preview ends it');
+  assert.deepEqual(log.slice(1).map((entry) => entry.step), [2, 3, 4, 5], 'a held snare rolls');
 });

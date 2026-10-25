@@ -2,12 +2,9 @@
 // so 'x---' is a 4-step note. Tuned sounds ring for the length; drums and effects roll,
 // playing on every step. A note stops at the beat's end: it never wraps.
 
-import { chordAt } from './sounds.js';
+import { TUNED, chordAt } from './sounds.js';
 
 export const HOLD = '-';
-
-// The sounds that ring while held; every other sound rolls.
-export const RINGS = new Set(['guitar', 'synth', 'chug', 'bass', 'rock-bass', '808', 'riff', 'bell']);
 
 // A '-' with no note before it (left by a cut, a copy or a bad save) starts a note of its own.
 // It sounds the same: a bar line is always a chord change, where a held note plays again anyway.
@@ -82,7 +79,7 @@ export function cue(row, step, rings, ringing) {
   return ringing && !chordChanges(step) ? 'keep' : 'hold';
 }
 
-// Plays each row's step as the scheduler reaches it. A held note ends on the audio clock at the
+// Plays each row's step as the scheduler reaches it. Tuned sounds ring; the rest roll. A held note ends on the audio clock at the
 // first step that doesn't hold it, so a tempo change, an edit, the loop's end and Stop all end it on time.
 export function createHoldPlayer(engine) {
   const ringing = new Map();
@@ -94,7 +91,7 @@ export function createHoldPlayer(engine) {
 
   return {
     step(row, track, id, step, time) {
-      const action = cue(row, step, RINGS.has(id), ringing.get(track)?.id === id);
+      const action = cue(row, step, TUNED.has(id), ringing.get(track)?.id === id);
       if (action === 'keep') return;
       release(track, time);
       if (action === 'hit') engine.play(id, time, step);
@@ -103,5 +100,29 @@ export function createHoldPlayer(engine) {
     releaseAll(time) {
       [...ringing.keys()].forEach((track) => release(track, time));
     },
+  };
+}
+
+function playNote(player, row, id, start, at) {
+  const end = noteEnd(row, start);
+  for (let step = start; step <= end; step += 1) player.step(row, 0, id, step, at(step));
+  player.releaseAll(at(end + 1));
+}
+
+// Plays one note from now, as the beat would: ringing, or rolling, for its length. Starting
+// another ends a note still ringing from this one.
+export function createNotePreview(engine) {
+  let notes = [];
+  const keep = (note) => {
+    notes.push(note);
+    return note;
+  };
+  const engineKept = { play: engine.play, hold: (...args) => keep(engine.hold(...args)) };
+
+  return function preview(row, id, start, stepTime) {
+    const now = engine.ctx.currentTime + 0.02;
+    notes.forEach((note) => note.release(now));
+    notes = [];
+    playNote(createHoldPlayer(engineKept), row, id, start, (step) => now + (step - start) * stepTime);
   };
 }
