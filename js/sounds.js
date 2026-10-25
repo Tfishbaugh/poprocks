@@ -26,8 +26,8 @@ export const KITS = [
     sounds: [
       { id: 'rock-kick', emoji: '🥁', label: 'Kick' },
       { id: 'rock-snare', emoji: '💥', label: 'Snare', gain: 0.8 },
-      { id: 'tom', emoji: '🪘', label: 'Tom', gain: 0.4 },
-      { id: 'crash', emoji: '💫', label: 'Crash', gain: 0.15 },
+      { id: 'tom', emoji: '🪘', label: 'Tom', gain: 0.25 },
+      { id: 'crash', emoji: '💫', label: 'Crash', gain: 0.11 },
       { id: 'guitar', emoji: '🎸', label: 'Chord', gain: 0.2 },
       { id: 'chug', emoji: '🤘', label: 'Chug', gain: 2 },
       { id: 'rock-bass', emoji: '🐘', label: 'Bass' },
