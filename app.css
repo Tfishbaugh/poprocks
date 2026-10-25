@@ -847,17 +847,24 @@ button:disabled { cursor: default; opacity: 0.4; }
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
 }
 
+/* The page's own colour rings a focused Undo or ✕, so it shows on the toast in light and dark. */
+.toast { --focus: var(--bg); }
+
 .toast-action { background: var(--bg); color: var(--text); }
 
-/* Taps go through the toast; its Undo catches them only after its first 0.8 s (js/main.js). */
-.toast, .toast.fresh .toast-action { pointer-events: none; }
-.toast-action { pointer-events: auto; }
+/* ✕ is quiet beside Undo, and 16 px from it, so a tap meant for Undo doesn't land on it. */
+.toast-close { padding: 0; background: none; color: inherit; }
+.toast-action:not([hidden]) + .toast-close { margin-left: 4px; }
 
-/* Meanwhile Undo fades in, so it doesn't look ready before it is. */
-.toast.fresh .toast-action { opacity: 0.5; }
+/* Taps go through the toast; its Undo and ✕ catch them only after its first 0.8 s (js/main.js). */
+.toast, .toast.fresh button { pointer-events: none; }
+.toast button { pointer-events: auto; }
+
+/* Meanwhile they fade in, so they don't look ready before they are. */
+.toast.fresh button { opacity: 0.5; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .toast.fresh .toast-action { animation: toast-ready 0.8s ease-in forwards; }
+  .toast.fresh button { animation: toast-ready 0.8s ease-in forwards; }
 }
 
 @keyframes toast-ready {
