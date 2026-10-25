@@ -118,7 +118,7 @@ export function createGrid(root, { onToggle, onSound, onLift }) {
     renderName(track, sound);
     pads[track].forEach((button, step) => {
       const on = isOn(beat, track, step);
-      const lift = on ? liftAt(beat, track, step) : 0;
+      const lift = on && tuned ? liftAt(beat, track, step) : 0; // a drum keeps a copied lift, unheard
       button.setAttribute('aria-pressed', String(on));
       button.setAttribute('aria-label', padLabel(sound, step, lift));
       button.classList.toggle('on', on);

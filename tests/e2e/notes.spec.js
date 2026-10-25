@@ -30,13 +30,15 @@ test('press and hold a tuned square, then lift: the note panel opens and the squ
   await expect(pad(page, 5, 2), 'the hold’s click didn’t toggle it back').toHaveAttribute('aria-pressed', 'true');
 });
 
-test('a quick tap still just toggles, and holding a drum opens nothing', async ({ page }) => {
+test('a quick tap still just toggles, and a long press on a drum is a slow tap', async ({ page }) => {
   await pad(page, 5, 2).click();
   await expect(pad(page, 5, 2)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#note-panel')).toBeHidden();
   await holdAndLift(page, pad(page, 1, 2));
   await expect(page.locator('#note-panel')).toBeHidden();
-  await expect(pad(page, 1, 2)).toHaveAttribute('aria-pressed', 'false');
+  await expect(pad(page, 1, 2), 'it turns on, as a tap would').toHaveAttribute('aria-pressed', 'true');
+  await holdAndLift(page, pad(page, 1, 2));
+  await expect(pad(page, 1, 2), 'and off again').toHaveAttribute('aria-pressed', 'false');
 });
 
 for (const way of ['Escape', 'Back', 'a tap outside']) {
@@ -129,6 +131,7 @@ test('Shift+↑ and Shift+↓ move a focused tuned note, one ↩ each; drums don
   await page.keyboard.press('Shift+ArrowUp');
   expect(await lift(page, 0, 0)).toBe('');
   await expect(pad(page, 0, 0), 'the arrow didn’t move focus either').toBeFocused();
+  await expect(page.locator('#sr-status')).toHaveText('Only a lit note with a tune goes higher or lower.');
 });
 
 test('a note can go 4 steps either way, and no further', async ({ page }) => {
@@ -137,9 +140,12 @@ test('a note can go 4 steps either way, and no further', async ({ page }) => {
   expect(await lift(page, 5, 0)).toBe('↑4');
 });
 
+const DARK_SURFACE = 'rgb(34, 27, 49)';
+
 for (const size of [{ width: 360, height: 640 }, { width: 640, height: 360 }, { width: 820, height: 1180 }]) {
-  test(`at ${size.width}×${size.height} the panel sits on screen beside its note`, async ({ page }) => {
+  for (const scheme of ['light', 'dark']) test(`at ${size.width}×${size.height} (${scheme}) the panel sits on screen beside its note`, async ({ page }) => {
     await page.setViewportSize(size);
+    await page.emulateMedia({ colorScheme: scheme });
     await page.reload();
     await page.click('#start-btn');
     const target = pad(page, 5, 6);
@@ -153,5 +159,42 @@ for (const size of [{ width: 360, height: 640 }, { width: 640, height: 360 }, { 
     const slider = await page.locator('#note-slider').boundingBox();
     expect(slider.width).toBeGreaterThanOrEqual(44);
     expect(slider.height).toBeGreaterThan(slider.width);
+    const surface = await page.locator('.note-card').evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(surface === DARK_SURFACE, 'the panel follows the theme').toBe(scheme === 'dark');
   });
 }
+
+test('each stop of the slider plays the note once', async ({ page }) => {
+  await page.evaluate(() => {
+    window.__starts = 0;
+    const start = AudioScheduledSourceNode.prototype.start;
+    AudioScheduledSourceNode.prototype.start = function count(...args) {
+      window.__starts += 1;
+      return start.apply(this, args);
+    };
+  });
+  const starts = () => page.evaluate(() => window.__starts);
+  await holdAndLift(page, pad(page, 5, 0)); // Bass: one oscillator a note
+  const before = await starts();
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(starts).toBe(before + 1);
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(starts).toBe(before + 2);
+  await page.waitForTimeout(300);
+  expect(await starts(), 'once a stop, not twice').toBe(before + 2);
+});
+
+test('a lift copied onto a drum, or kept when a row turns into a drum, isn’t shown', async ({ page }) => {
+  await pad(page, 5, 0).focus();
+  await page.keyboard.press('Shift+ArrowUp');
+  await page.click('#copy');
+  await page.locator('.copy-sound[data-track="5"]').click();
+  await page.locator('.copy-sound[data-track="0"]').click();
+  expect(await lift(page, 0, 0)).toBe('');
+  await expect(pad(page, 0, 0)).toHaveAttribute('aria-label', 'Kick, step 1');
+  await page.locator('.sound[data-track="5"]').click();
+  await page.locator('#row-sheet .row-sound[data-sound="tom"]').click();
+  await page.click('#row-close');
+  expect(await lift(page, 5, 0)).toBe('');
+  await expect(pad(page, 5, 0)).toHaveAttribute('aria-label', 'Tom, step 1');
+});

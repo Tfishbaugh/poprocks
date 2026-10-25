@@ -4,8 +4,6 @@
 
 import { placeCard } from './tour.js';
 
-export const LIFT_MAX = 4;
-
 // What a screen reader hears for each spot: "2 higher", "1 lower", "as written".
 export function liftWords(lift) {
   if (!lift) return 'as written';

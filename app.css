@@ -1088,7 +1088,7 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 /* ---- Mix and match (task 84): a ▾ on each name, and "Sound for row N" ---- */
 
-.sound .pick { position: absolute; right: 4px; bottom: 1px; font-size: 12px; line-height: 1; color: var(--muted); }
+.sound .pick { position: absolute; right: 4px; bottom: 1px; font-size: 14px; line-height: 1; color: var(--text); opacity: 0.7; }
 
 .row-kits { display: flex; flex-direction: column; gap: 12px; }
 .row-kit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }

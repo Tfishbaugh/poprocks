@@ -322,8 +322,10 @@ function onRowClosed(track) {
 const addRowCell = createAddRow(onAddRow);
 
 function renderRows(current) {
+  const full = trackCount(current) >= MAX_TRACKS;
   placeAddRow($('grid'), addRowCell, trackCount(current));
-  $('add-row-tool').disabled = trackCount(current) >= MAX_TRACKS;
+  $('add-row-tool').disabled = full;
+  $('add-row-tool').setAttribute('aria-label', full ? 'Add a row: 12 is the most' : 'Add a row');
 }
 
 // ➕ Row: an empty row with a sound not on a row yet. It scrolls into view and plays, so the kid
@@ -435,14 +437,20 @@ function onHold() {
   noteVisit = { pushed: false };
 }
 
-// A lift without a slide opens the panel. Until held notes add ◀ ▶, only tuned sounds have one.
+// A lift without a slide opens the panel. Until held notes add ◀ ▶, only tuned sounds have one,
+// so a long press on any other square is just a slow tap.
 function onLift(note, { moved }) {
-  if (moved || !note || !TUNED.has(beat().sounds[note.track])) return endNoteVisit();
+  if (moved || !note) return endNoteVisit();
   const { track, step } = note;
+  if (!TUNED.has(beat().sounds[track])) return slowTap(track, step);
   if (!isOn(beat(), track, step)) editNote(toggle(beat(), track, step));
-  const label = `${soundAt(track).label}, step ${step + 1}`;
-  notePanel.open(note, { lift: liftAt(beat(), track, step), tuned: true, label });
+  notePanel.open(note, { lift: liftAt(beat(), track, step), tuned: true, label: padLabel(soundAt(track), step, 0) });
   history.pushState({ poprocks: 'note' }, '');
+}
+
+function slowTap(track, step) {
+  endNoteVisit();
+  onToggle(track, step);
 }
 
 function endNoteVisit() {
@@ -457,12 +465,17 @@ function onNoteLift({ track, step }, lift) {
 
 // Shift+↑ and Shift+↓ on a tuned note: the key slider's keys, one ↩ each.
 function onLiftKey(track, step, delta) {
-  if (!isOn(beat(), track, step) || !TUNED.has(beat().sounds[track])) return;
+  const tuned = isOn(beat(), track, step) && TUNED.has(beat().sounds[track]);
+  if (!tuned) return say('Only a lit note with a tune goes higher or lower.');
   const lift = liftAt(beat(), track, step) + delta;
   if (Math.abs(lift) > LIFT_MAX) return;
   commit(withLift(beat(), track, step, lift));
   if (!scheduler.playing) engine.play(beat().sounds[track], undefined, step, lift);
-  $('sr-status').textContent = padLabel(soundAt(track), step, lift);
+  say(padLabel(soundAt(track), step, lift));
+}
+
+function say(text) {
+  $('sr-status').textContent = text;
 }
 
 function onNoteClosed(note) {
