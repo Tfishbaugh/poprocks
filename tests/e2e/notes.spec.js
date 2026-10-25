@@ -54,6 +54,28 @@ for (const way of ['Escape', 'Back', 'a tap outside']) {
   });
 }
 
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true });
+
+  // A finger's hold, lifted where it started. Touch sends its click where the finger lifts, which by
+  // then is the panel's backdrop: that click must not close the panel it just opened.
+  test('a finger’s press and hold opens the panel, and it stays open', async ({ page }) => {
+    const box = await pad(page, 5, 2).boundingBox();
+    const at = [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }];
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at });
+    await page.waitForTimeout(400);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(400);
+    await expect(page.locator('#note-panel')).toBeVisible();
+    await expect(pad(page, 5, 2)).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#note-done').tap();
+    await expect(page.locator('#note-panel')).toBeHidden();
+    await pad(page, 5, 4).tap();
+    await expect(pad(page, 5, 4), 'the next tap toggles as usual').toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
 // ---- The key slider ----
 
 const lift = (page, track, step) => pad(page, track, step).getAttribute('data-lift');

@@ -57,6 +57,24 @@ test.describe('the row sheet', () => {
     await expect(pad(page, 7, 3)).toHaveAttribute('aria-pressed', 'true');
   });
 
+  test('the sheet plays the row’s sound as it opens, and each pick plays once', async ({ page }) => {
+    const starts = () => page.evaluate(() => window.__starts);
+    await page.evaluate(() => {
+      window.__starts = 0;
+      const start = AudioScheduledSourceNode.prototype.start;
+      AudioScheduledSourceNode.prototype.start = function count(...args) {
+        window.__starts += 1;
+        return start.apply(this, args);
+      };
+    });
+    await name(page, 6).click(); // Laser: one oscillator
+    await expect.poll(starts).toBe(1);
+    await tile(page, 'laser').click();
+    await expect.poll(starts).toBe(2);
+    await page.waitForTimeout(300);
+    expect(await starts(), 'once, not twice').toBe(2);
+  });
+
   test('the toast’s Undo puts the row’s old sound back', async ({ page }) => {
     await pickRowSound(page, 0, 'snap');
     await page.click('#toast-action');

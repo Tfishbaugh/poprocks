@@ -825,6 +825,22 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 .toast-action { background: var(--bg); color: var(--text); }
 
+/* Taps go through the toast; its Undo catches them only after its first 0.8 s (js/main.js). */
+.toast, .toast.fresh .toast-action { pointer-events: none; }
+.toast-action { pointer-events: auto; }
+
+/* Meanwhile Undo fades in, so it doesn't look ready before it is. */
+.toast.fresh .toast-action { opacity: 0.5; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast.fresh .toast-action { animation: toast-ready 0.8s ease-in forwards; }
+}
+
+@keyframes toast-ready {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
 /* ---- Tour (js/tour.js): a lit control, everything else dimmed, and a card beside it ---- */
 
 .tour { position: fixed; z-index: 20; inset: 0; }
@@ -1010,7 +1026,32 @@ button:disabled { cursor: default; opacity: 0.4; }
   width: 48px;
   height: 200px;
   margin: 0;
-  accent-color: var(--brand);
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* A big round thumb a finger can find, on a thick track. */
+.note-slider::-webkit-slider-runnable-track { width: 14px; border-radius: 7px; background: var(--pad-alt); }
+.note-slider::-moz-range-track { width: 14px; border-radius: 7px; background: var(--pad-alt); }
+
+.note-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 40px;
+  height: 40px;
+  margin-left: -13px;
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+.note-slider::-moz-range-thumb {
+  width: 32px;
+  height: 32px;
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--brand);
 }
 
 @media (orientation: landscape) and (max-height: 520px) {

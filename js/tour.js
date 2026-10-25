@@ -11,8 +11,8 @@ const RING = 8;
 
 // Task 84: a row's name opens its sounds, a held note gets the key slider, and a slide stretches it.
 const MIX = [
-  { name: 'names', find: '#grid .sound', pic: '🎹▾', text: 'Tap a name to change its sound' },
-  { name: 'hold', find: '#grid .pad.on.tuned', pic: '👇↕', text: 'Press and hold a note to make it higher or lower' },
+  { name: 'names', find: '#grid .sound', pic: '🎹▾', text: 'Tap a name to change sounds' },
+  { name: 'hold', find: '#grid .pad.on.tuned', pic: '👇↕', text: 'Hold a note: higher or lower' },
   { name: 'stretch', find: '#grid .pad.on', pic: '👇➡️', text: 'Hold a note, slide it longer' }, // held notes
 ];
 
